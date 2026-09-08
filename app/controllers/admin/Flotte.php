@@ -16,9 +16,11 @@ class Flotte extends Controller
     public function index()
     {
         $programmation_voyage = new Programmation_voyage();
+        $camion = new Camion();
 
         $this->view('admin/flotte', [
             'cars' => $programmation_voyage->getEtatFlotte(),
+            'camions' => $camion->getTousPourFlotte(),
         ]);
     }
 }

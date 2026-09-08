@@ -85,6 +85,26 @@ class Camion extends Model
         return $stmt->execute();
     }
 
+    // Pour l'ecran "Flotte" : tous les camions de la compagnie, actifs ET inactifs
+    // (contrairement a Envoie_colis::getCamionsActifs(), qui ne veut que les actifs
+    // pour l'envoi de colis -- ici on veut voir l'etat de toute la flotte). Meme
+    // portee que Programmation_voyage::getEtatFlotte() : filtre par id_compagnie de
+    // session sans exception super_admin (deja le comportement actuel pour les cars).
+    public function getTousPourFlotte()
+    {
+        // FetchSelectWheres() (et non FetchSelectWhere1()) : renvoie des OBJETS, pour
+        // rester coherent avec $cars dans la meme vue flotte.view.php (Programmation_voyage::
+        // getEtatFlotte() utilise SelectAllDatas(), objets egalement -- une confusion
+        // tableau/objet entre les deux jeux de donnees affiches cote a cote serait facile
+        // a introduire par erreur, cf. les bugs deja rencontres sur ce point dans ce projet).
+        return $this->FetchSelectWheres(
+            "*",
+            "camion",
+            "id_compagnie = :id_compagnie",
+            [":id_compagnie" => $_SESSION['id_compagnie'] ?? null]
+        );
+    }
+
     public function deleteCamion($id) {
         // Un Admin ne peut supprimer que les camions de sa propre compagnie (IDOR sinon)
         $sql = "DELETE FROM camion WHERE id_camion = :id";

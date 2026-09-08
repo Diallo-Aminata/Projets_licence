@@ -125,6 +125,48 @@
                 </div>
             </div>
 
+            <!-- Un camion n'a ni status_car ni programmation_voyage (pas de trajet, pas de
+                 position) : seulement un statut actif/inactif -- affiché dans un tableau
+                 séparé plutôt que fusionné avec celui des cars, dont la logique d'état
+                 (en transit/disponible à X/anomalie) n'a pas d'équivalent ici. -->
+            <div class="card shadow-lg border-0 rounded-3 mt-4">
+                <div class="card-header bg-primary text-white fw-bold">
+                    <i class="bx bx-truck me-1"></i> État actuel de tous les camions
+                </div>
+                <div class="card-body">
+                    <?php if (empty($camions)): ?>
+                        <p class="text-muted mb-0">Aucun camion trouvé pour votre compagnie.</p>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover table-bordered align-middle shadow-sm rounded">
+                                <thead class="table-light text-center">
+                                    <tr>
+                                        <th>Numéro Camion</th>
+                                        <th>Matricule</th>
+                                        <th>Statut</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="text-center">
+                                    <?php foreach ($camions as $camion): ?>
+                                        <tr>
+                                            <td class="fw-bold"><?= htmlspecialchars($camion->numero_camion) ?></td>
+                                            <td><?= htmlspecialchars($camion->matriculle) ?></td>
+                                            <td>
+                                                <?php if (($camion->actif ?? 'on') === 'on'): ?>
+                                                    <span class="badge bg-success">Actif</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-secondary">Inactif</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
         </main>
         <!--end page main-->
         <!--start overlay-->

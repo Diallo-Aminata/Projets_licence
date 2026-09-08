@@ -67,9 +67,23 @@
                                 value="<?= date('Y-m-d') ?>" min="<?= date('Y-m-d') ?>" required>
                         </div>
 
-                        <div class="col-md-4">
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="estCamionCheck" name="est_camion" value="1">
+                                <label class="form-check-label" for="estCamionCheck">Louer un camion (au lieu d'un car)</label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4" id="carField">
                             <label class="form-label fw-semibold">Car</label>
                             <select class="form-select" id="id_car" name="id_car" required disabled>
+                                <option value="" selected>Choisissez d'abord la gare et les dates</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4 d-none" id="camionField">
+                            <label class="form-label fw-semibold">Camion</label>
+                            <select class="form-select" id="id_camion" name="id_camion" disabled>
                                 <option value="" selected>Choisissez d'abord la gare et les dates</option>
                             </select>
                         </div>
@@ -109,7 +123,7 @@
                             <tr>
                                 <th>Gare départ</th>
                                 <th>Destination</th>
-                                <th>Car</th>
+                                <th>Véhicule</th>
                                 <th>Client</th>
                                 <th>Période</th>
                                 <th>Frais</th>
@@ -126,7 +140,14 @@
                                     <tr>
                                         <td><?= htmlspecialchars(($l->localite ?? '-') . ' (' . ($l->numeroGare ?? '-') . ')') ?></td>
                                         <td><?= htmlspecialchars($l->destination) ?></td>
-                                        <td><?= htmlspecialchars(($l->numero_car ?? '-') . ' - ' . ($l->matriculle ?? '-')) ?></td>
+                                        <td>
+                                            <?php if (($l->type_vehicule ?? 'car') === 'camion'): ?>
+                                                <span class="badge bg-info text-dark">Camion</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-primary">Car</span>
+                                            <?php endif; ?>
+                                            <?= htmlspecialchars(($l->numero_vehicule ?? '-') . ' - ' . ($l->matricule_vehicule ?? '-')) ?>
+                                        </td>
                                         <td><?= htmlspecialchars($l->prenom_client . ' ' . $l->nom_client) ?><br><small class="text-muted"><?= htmlspecialchars($l->telephone_client) ?></small></td>
                                         <td><?= date('d/m/Y', strtotime($l->date_depart)) ?> → <?= date('d/m/Y', strtotime($l->date_retour_prevu)) ?></td>
                                         <td class="fw-bold text-success"><?= number_format($l->frais_location, 0, ',', ' ') ?> F</td>
@@ -180,8 +201,30 @@
         const dateDepartInput = document.getElementById('date_depart');
         const dateRetourInput = document.getElementById('date_retour_prevu');
         const idCarSelect = document.getElementById('id_car');
+        const idCamionSelect = document.getElementById('id_camion');
+        const carField = document.getElementById('carField');
+        const camionField = document.getElementById('camionField');
+        const estCamionCheck = document.getElementById('estCamionCheck');
         const idAgenceDepartFixe = <?= json_encode((int)($_SESSION['id_agence'] ?? 0)) ?>;
         const isAdmin = <?= json_encode(($_SESSION['droit'] ?? null) === 'Admin') ?>;
+
+        // Bascule Car / Camion : meme principe que toggleVehiculeFields() dans
+        // chauffeur_cars.view.php, mais chaque select est repeuple par AJAX (pas de
+        // liste statique ici), donc on rafraichit aussitot le select qui devient visible.
+        function toggleVehiculeFields() {
+            const estCamion = estCamionCheck.checked;
+            carField.classList.toggle('d-none', estCamion);
+            camionField.classList.toggle('d-none', !estCamion);
+            idCarSelect.required = !estCamion;
+            idCamionSelect.required = estCamion;
+            if (estCamion) {
+                idCarSelect.value = '';
+                rafraichirCamionsDisponibles();
+            } else {
+                idCamionSelect.value = '';
+                rafraichirCarsDisponibles();
+            }
+        }
 
         function rafraichirCarsDisponibles() {
             const id_agence_depart = isAdmin ? (idAgenceDepartInput ? idAgenceDepartInput.value : '') : idAgenceDepartFixe;
@@ -223,15 +266,65 @@
             });
         }
 
-        idAgenceDepartInput?.addEventListener('change', rafraichirCarsDisponibles);
+        // Miroir de rafraichirCarsDisponibles() pour un camion.
+        function rafraichirCamionsDisponibles() {
+            const id_agence_depart = isAdmin ? (idAgenceDepartInput ? idAgenceDepartInput.value : '') : idAgenceDepartFixe;
+            const date_depart = dateDepartInput.value;
+            const date_retour_prevu = dateRetourInput.value;
+
+            idCamionSelect.innerHTML = '<option value="">Chargement...</option>';
+            idCamionSelect.disabled = true;
+
+            if (!id_agence_depart || !date_depart || !date_retour_prevu) {
+                idCamionSelect.innerHTML = '<option value="">Choisissez d\'abord la gare et les dates</option>';
+                return;
+            }
+
+            $.ajax({
+                url: '<?= BASE_URL ?>/admin/Locations_cars/ajaxCamionsDisponibles',
+                type: 'POST',
+                data: { id_agence_depart, date_depart, date_retour_prevu },
+                dataType: 'json',
+                success: function(response) {
+                    if (response.error) {
+                        idCamionSelect.innerHTML = '<option value="">' + response.error + '</option>';
+                        return;
+                    }
+                    if (!response.camions || response.camions.length === 0) {
+                        idCamionSelect.innerHTML = '<option value="">Aucun camion disponible sur cette période</option>';
+                        return;
+                    }
+                    let options = '<option value="" disabled selected>Choisir un camion</option>';
+                    response.camions.forEach(function(c) {
+                        options += `<option value="${c.id_camion}">Camion n°${c.numero_camion} - ${c.matriculle}</option>`;
+                    });
+                    idCamionSelect.innerHTML = options;
+                    idCamionSelect.disabled = false;
+                },
+                error: function() {
+                    idCamionSelect.innerHTML = '<option value="">Erreur lors du chargement des camions</option>';
+                }
+            });
+        }
+
+        function rafraichirVehiculesDisponibles() {
+            if (estCamionCheck.checked) {
+                rafraichirCamionsDisponibles();
+            } else {
+                rafraichirCarsDisponibles();
+            }
+        }
+
+        estCamionCheck.addEventListener('change', toggleVehiculeFields);
+        idAgenceDepartInput?.addEventListener('change', rafraichirVehiculesDisponibles);
         dateDepartInput.addEventListener('change', function() {
             if (dateRetourInput.value < dateDepartInput.value) {
                 dateRetourInput.value = dateDepartInput.value;
             }
             dateRetourInput.min = dateDepartInput.value;
-            rafraichirCarsDisponibles();
+            rafraichirVehiculesDisponibles();
         });
-        dateRetourInput.addEventListener('change', rafraichirCarsDisponibles);
+        dateRetourInput.addEventListener('change', rafraichirVehiculesDisponibles);
         rafraichirCarsDisponibles();
 
         document.querySelectorAll('.btn-valider-location').forEach(btn => {

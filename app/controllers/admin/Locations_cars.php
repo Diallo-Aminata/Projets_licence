@@ -80,6 +80,39 @@ class Locations_cars extends Controller
         exit;
     }
 
+    // Miroir de ajaxCarsDisponibles() pour un camion (pas de limiterAGare, cf.
+    // Location_car::camionsDisponibles()).
+    public function ajaxCamionsDisponibles()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $droit = $_SESSION['droit'] ?? null;
+        $id_agence_depart = $droit === 'chef_d_escale' ? $_SESSION['id_agence'] : (int)($_POST['id_agence_depart'] ?? 0);
+        $date_depart = $_POST['date_depart'] ?? '';
+        $date_retour_prevu = $_POST['date_retour_prevu'] ?? '';
+
+        if (!$id_agence_depart || !$date_depart || !$date_retour_prevu) {
+            echo json_encode(['error' => 'Gare de départ et dates requises.']);
+            exit;
+        }
+        if ($date_retour_prevu < $date_depart) {
+            echo json_encode(['error' => 'La date de retour prévu ne peut pas être avant la date de départ.']);
+            exit;
+        }
+
+        $model = new Location_car();
+        $camions = $model->camionsDisponibles($id_agence_depart, $date_depart, $date_retour_prevu);
+
+        echo json_encode([
+            'camions' => array_map(fn($c) => [
+                'id_camion'     => (int)$c->id_camion,
+                'numero_camion' => $c->numero_camion,
+                'matriculle'    => $c->matriculle,
+            ], $camions)
+        ]);
+        exit;
+    }
+
     public function valider($id = null)
     {
         if ($id === null) {

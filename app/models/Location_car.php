@@ -41,6 +41,33 @@ class Location_car extends Model
         return $this->FetchSelectCustom($sql, $params);
     }
 
+    // Miroir de carsDisponibles() pour un camion : pas de sous-filtre "limiterAGare"
+    // (pas de liaison_car_trajet/programmer equivalente pour un camion -- meme choix
+    // deja fait pour l'envoi de colis, Envoie_colis::getCamionsActifs() : un camion
+    // est disponible compagnie entiere, pas scope par gare). Un camion deja loue sur
+    // une periode qui chevauche celle demandee est exclu, meme logique que pour un car.
+    public function camionsDisponibles($id_agence_depart, $date_depart, $date_retour)
+    {
+        $id_compagnie = $_SESSION['id_compagnie'];
+
+        $sql = "SELECT DISTINCT camion.id_camion, camion.numero_camion, camion.matriculle
+                FROM camion
+                WHERE camion.id_compagnie = :id_compagnie AND camion.actif = 'on'
+                AND camion.id_camion NOT IN (
+                    SELECT lc.id_camion FROM location_car lc
+                    WHERE lc.id_camion IS NOT NULL
+                      AND lc.statut IN ('en_attente', 'valide')
+                      AND lc.date_depart <= :date_retour AND lc.date_retour_prevu >= :date_depart
+                )
+                ORDER BY camion.numero_camion";
+
+        return $this->FetchSelectCustom($sql, [
+            ':id_compagnie' => $id_compagnie,
+            ':date_depart' => $date_depart,
+            ':date_retour' => $date_retour,
+        ]);
+    }
+
     public function FetchSelectCustom($query, $params = [])
     {
         $stmt = $this->connect()->prepare($query);
@@ -63,6 +90,21 @@ class Location_car extends Model
         return (bool) $car;
     }
 
+    // Miroir de carAppartientCompagnie() pour un camion.
+    private function camionAppartientCompagnie($id_camion)
+    {
+        if (($_SESSION['droit'] ?? null) === 'super_admin') {
+            return true;
+        }
+        $camion = $this->FetchSelectWhere(
+            "id_camion",
+            "camion",
+            "id_camion = :id_camion AND id_compagnie = :id_compagnie",
+            [":id_camion" => $id_camion, ":id_compagnie" => $_SESSION['id_compagnie'] ?? null]
+        );
+        return (bool) $camion;
+    }
+
     public function saveLocation()
     {
         $id_compagnie = $_SESSION['id_compagnie'];
@@ -83,8 +125,15 @@ class Location_car extends Model
             $this->set_flash("Veuillez indiquer la destination.", "danger");
             return false;
         }
-        if (empty($id_car)) {
-            $this->set_flash("Veuillez choisir un car.", "danger");
+
+        // Un vehicule loue est soit un car, soit un camion (jamais les deux), meme
+        // convention que Chauffeurs_car::saveChauffeur().
+        $estCamion = isset($_POST['est_camion']) && $_POST['est_camion'] === '1';
+        $id_camion = $estCamion ? ($_POST['id_camion'] ?? null) : null;
+        $id_car    = $estCamion ? null : ($_POST['id_car'] ?? null);
+
+        if ($estCamion ? empty($id_camion) : empty($id_car)) {
+            $this->set_flash("Veuillez choisir un véhicule.", "danger");
             return false;
         }
         if (empty($nom_client) || empty($prenom_client) || empty($telephone_client)) {
@@ -104,53 +153,86 @@ class Location_car extends Model
             return false;
         }
 
-        if (!$this->carAppartientCompagnie($id_car)) {
-            $this->set_flash("Ce car n'appartient pas à votre compagnie.", "danger");
-            return false;
+        if ($estCamion) {
+            if (!$this->camionAppartientCompagnie($id_camion)) {
+                $this->set_flash("Ce camion n'appartient pas à votre compagnie.", "danger");
+                return false;
+            }
+        } else {
+            if (!$this->carAppartientCompagnie($id_car)) {
+                $this->set_flash("Ce car n'appartient pas à votre compagnie.", "danger");
+                return false;
+            }
         }
 
-        // Re-verification serveur de la disponibilite du car choisi : ne jamais faire
+        // Re-verification serveur de la disponibilite du vehicule choisi : ne jamais faire
         // confiance a la liste proposee cote client (formulaire trafique, race condition
         // entre deux locations soumises en meme temps...).
         $aujourdhui = date('Y-m-d');
-        $limiterAGare = ($droit === 'chef_d_escale') && $date_depart === $aujourdhui;
-        $disponibles = $this->carsDisponibles($id_agence_depart, $date_depart, $date_retour_prevu, $limiterAGare);
-        $idsDisponibles = array_map(fn($c) => (int)$c->id_car, $disponibles);
-        if (!in_array((int)$id_car, $idsDisponibles, true)) {
-            $this->set_flash("Ce car n'est plus disponible sur la période demandée. Veuillez en choisir un autre.", "danger");
-            return false;
+        if ($estCamion) {
+            // Pas de limiterAGare pour un camion (cf. camionsDisponibles()).
+            $disponibles = $this->camionsDisponibles($id_agence_depart, $date_depart, $date_retour_prevu);
+            $idsDisponibles = array_map(fn($c) => (int)$c->id_camion, $disponibles);
+            if (!in_array((int)$id_camion, $idsDisponibles, true)) {
+                $this->set_flash("Ce camion n'est plus disponible sur la période demandée. Veuillez en choisir un autre.", "danger");
+                return false;
+            }
+        } else {
+            $limiterAGare = ($droit === 'chef_d_escale') && $date_depart === $aujourdhui;
+            $disponibles = $this->carsDisponibles($id_agence_depart, $date_depart, $date_retour_prevu, $limiterAGare);
+            $idsDisponibles = array_map(fn($c) => (int)$c->id_car, $disponibles);
+            if (!in_array((int)$id_car, $idsDisponibles, true)) {
+                $this->set_flash("Ce car n'est plus disponible sur la période demandée. Veuillez en choisir un autre.", "danger");
+                return false;
+            }
         }
 
-        // Le check ci-dessus n'est pas suffisant seul : deux locations pour LE MEME car sur
+        // Le check ci-dessus n'est pas suffisant seul : deux locations pour LE MEME vehicule sur
         // des periodes qui se chevauchent, soumises a quelques millisecondes d'intervalle,
         // peuvent toutes les deux le lire comme disponible avant qu'aucune n'ecrive. On
-        // reverrouille ce car precis (FOR UPDATE) et on rejoue le test de chevauchement dans
+        // reverrouille ce vehicule precis (FOR UPDATE) et on rejoue le test de chevauchement dans
         // la transaction : la 2e requete, bloquee le temps de la 1ere, le retrouvera alors
         // pris et sera rejetee proprement au lieu de doubler la reservation.
         $pdo = $this->connect();
         $pdo->beginTransaction();
         try {
-            $pdo->prepare("SELECT id_car FROM car WHERE id_car = :id_car FOR UPDATE")
-                ->execute([':id_car' => $id_car]);
+            if ($estCamion) {
+                $pdo->prepare("SELECT id_camion FROM camion WHERE id_camion = :id_camion FOR UPDATE")
+                    ->execute([':id_camion' => $id_camion]);
 
-            $stmtConflit = $pdo->prepare(
-                "SELECT COUNT(*) FROM location_car
-                 WHERE id_car = :id_car AND statut IN ('en_attente', 'valide')
-                   AND date_depart <= :date_retour AND date_retour_prevu >= :date_depart"
-            );
-            $stmtConflit->execute([
-                ':id_car' => $id_car,
-                ':date_depart' => $date_depart,
-                ':date_retour' => $date_retour_prevu,
-            ]);
+                $stmtConflit = $pdo->prepare(
+                    "SELECT COUNT(*) FROM location_car
+                     WHERE id_camion = :id_camion AND statut IN ('en_attente', 'valide')
+                       AND date_depart <= :date_retour AND date_retour_prevu >= :date_depart"
+                );
+                $stmtConflit->execute([
+                    ':id_camion' => $id_camion,
+                    ':date_depart' => $date_depart,
+                    ':date_retour' => $date_retour_prevu,
+                ]);
+            } else {
+                $pdo->prepare("SELECT id_car FROM car WHERE id_car = :id_car FOR UPDATE")
+                    ->execute([':id_car' => $id_car]);
+
+                $stmtConflit = $pdo->prepare(
+                    "SELECT COUNT(*) FROM location_car
+                     WHERE id_car = :id_car AND statut IN ('en_attente', 'valide')
+                       AND date_depart <= :date_retour AND date_retour_prevu >= :date_depart"
+                );
+                $stmtConflit->execute([
+                    ':id_car' => $id_car,
+                    ':date_depart' => $date_depart,
+                    ':date_retour' => $date_retour_prevu,
+                ]);
+            }
             if ((int)$stmtConflit->fetchColumn() > 0) {
                 $pdo->rollBack();
-                $this->set_flash("Ce car vient d'être réservé sur cette période par quelqu'un d'autre. Veuillez en choisir un autre.", "danger");
+                $this->set_flash("Ce véhicule vient d'être réservé sur cette période par quelqu'un d'autre. Veuillez en choisir un autre.", "danger");
                 return false;
             }
         } catch (Throwable $e) {
             $pdo->rollBack();
-            $this->set_flash("Erreur lors de la vérification de disponibilité du car.", "danger");
+            $this->set_flash("Erreur lors de la vérification de disponibilité du véhicule.", "danger");
             return false;
         }
 
@@ -211,10 +293,10 @@ class Location_car extends Model
 
         $stmtInsert = $pdo->prepare(
             "INSERT INTO location_car
-                (id_compagnie, id_agence_depart, destination, id_car, id_caisse, id_caisse_user, nom_client, prenom_client,
+                (id_compagnie, id_agence_depart, destination, id_car, id_camion, id_caisse, id_caisse_user, nom_client, prenom_client,
                  telephone_client, date_depart, date_retour_prevu, frais_location, statut, id_utilisateur)
              VALUES
-                (:id_compagnie, :id_agence_depart, :destination, :id_car, :id_caisse, :id_caisse_user, :nom_client, :prenom_client,
+                (:id_compagnie, :id_agence_depart, :destination, :id_car, :id_camion, :id_caisse, :id_caisse_user, :nom_client, :prenom_client,
                  :telephone_client, :date_depart, :date_retour_prevu, :frais_location, :statut, :id_utilisateur)"
         );
         $insertion = $stmtInsert->execute([
@@ -222,6 +304,7 @@ class Location_car extends Model
             ':id_agence_depart'  => $id_agence_depart,
             ':destination'       => trim($destination),
             ':id_car'            => $id_car,
+            ':id_camion'         => $id_camion,
             ':id_caisse'         => $id_caisse,
             ':id_caisse_user'    => $id_caisse_user,
             ':nom_client'        => trim($nom_client),
@@ -290,12 +373,19 @@ class Location_car extends Model
             $params[':id_agence'] = $_SESSION['id_agence'];
         }
 
+        // Meme discriminant calcule que Envoi_colis::liste_colis_envoyer() : id_car
+        // renseigne -> car, sinon camion (jamais les deux, cf. saveLocation()).
         $rows = $this->FetchSelectWheres(
-            'l.*, a.localite, a.numeroGare, c.numero_car, c.matriculle, u.utilisateurs AS agent, u.droit AS agent_droit,
-             v.utilisateurs AS valide_par_nom',
+            "l.*, a.localite, a.numeroGare,
+             CASE WHEN l.id_car IS NOT NULL THEN 'car' ELSE 'camion' END AS type_vehicule,
+             COALESCE(c.numero_car, cam.numero_camion) AS numero_vehicule,
+             COALESCE(c.matriculle, cam.matriculle) AS matricule_vehicule,
+             c.numero_car, c.matriculle, u.utilisateurs AS agent, u.droit AS agent_droit,
+             v.utilisateurs AS valide_par_nom",
             'location_car l
                 LEFT JOIN agence a ON l.id_agence_depart = a.idAgence
                 LEFT JOIN car c ON l.id_car = c.id_car
+                LEFT JOIN camion cam ON l.id_camion = cam.id_camion
                 LEFT JOIN utilisateur u ON l.id_utilisateur = u.idUser
                 LEFT JOIN utilisateur v ON l.id_valide_par = v.idUser',
             $condition,
@@ -321,10 +411,15 @@ class Location_car extends Model
         }
 
         return $this->FetchSelectWheres(
-            'l.*, a.localite, a.numeroGare, c.numero_car, c.matriculle, u.utilisateurs AS agent',
+            "l.*, a.localite, a.numeroGare,
+             CASE WHEN l.id_car IS NOT NULL THEN 'car' ELSE 'camion' END AS type_vehicule,
+             COALESCE(c.numero_car, cam.numero_camion) AS numero_vehicule,
+             COALESCE(c.matriculle, cam.matriculle) AS matricule_vehicule,
+             c.numero_car, c.matriculle, u.utilisateurs AS agent",
             'location_car l
                 LEFT JOIN agence a ON l.id_agence_depart = a.idAgence
                 LEFT JOIN car c ON l.id_car = c.id_car
+                LEFT JOIN camion cam ON l.id_camion = cam.id_camion
                 LEFT JOIN utilisateur u ON l.id_utilisateur = u.idUser',
             $condition . ' ORDER BY l.date_depart DESC, l.id_location DESC',
             $params

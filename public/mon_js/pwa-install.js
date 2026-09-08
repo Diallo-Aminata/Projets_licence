@@ -140,10 +140,19 @@
         }
     }
 
+    // Le modal ne doit jamais apparaître avant connexion (ex: sur la page de login
+    // elle-même) : PWA_USER_LOGGED_IN n'est injecté à `true` par index.php que
+    // lorsqu'une session utilisateur est ouverte.
+    function estConnecte() {
+        return window.PWA_USER_LOGGED_IN === true;
+    }
+
     window.addEventListener('beforeinstallprompt', function (e) {
         e.preventDefault();
         deferredPrompt = e;
-        if (isAdminSection() && !alreadyHandled() && isMobile()) {
+        // Pas de isMobile() ici volontairement : deferredPrompt.prompt() fonctionne
+        // aussi sur Chrome/Edge desktop (crée un raccourci comme sur mobile).
+        if (isAdminSection() && estConnecte() && !alreadyHandled()) {
             setTimeout(function () { showModal('android'); }, 1200);
         }
     });
@@ -153,8 +162,9 @@
         localStorage.removeItem(STORAGE_DISMISSED);
     });
 
-    // iOS Safari ne déclenche jamais beforeinstallprompt : instructions manuelles
-    if (isAdminSection() && isIos() && !alreadyHandled() && isMobile()) {
+    // iOS Safari ne déclenche jamais beforeinstallprompt : instructions manuelles.
+    // isMobile()/isIos() restent ici : pas d'équivalent iOS desktop.
+    if (isAdminSection() && estConnecte() && isIos() && !alreadyHandled() && isMobile()) {
         setTimeout(function () { showModal('ios'); }, 1200);
     }
 })();

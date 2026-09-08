@@ -28,7 +28,8 @@ ob_start(function ($html) {
     if (stripos($html, '</body>') === false) {
         return $html;
     }
-    $tag = '<script>window.PWA_BASE_URL = ' . json_encode(BASE_URL) . ';</script>' . "\n"
+    $tag = '<script>window.PWA_BASE_URL = ' . json_encode(BASE_URL) . ';'
+        . 'window.PWA_USER_LOGGED_IN = ' . json_encode(isset($_SESSION['id_utilisateur'])) . ';</script>' . "\n"
         . '<script src="' . ASSET_URL . '/mon_js/pwa-install.js" defer></script>' . "\n</body>";
     return preg_replace('/<\/body>/i', $tag, $html, 1);
 });
