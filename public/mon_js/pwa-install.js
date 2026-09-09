@@ -147,12 +147,57 @@
         return window.PWA_USER_LOGGED_IN === true;
     }
 
+    // Bouton flottant persistant : le modal automatique ne se déclenche qu'une
+    // fois (et jamais si l'utilisateur a déjà cliqué "Plus tard"), alors que
+    // "beforeinstallprompt" n'est lui-même émis par Chrome/Edge qu'après ses
+    // propres heuristiques d'engagement (plusieurs visites, temps passé sur le
+    // site...) -- donc pas forcément dès la première connexion. Le bouton reste
+    // affiché tant que l'appli n'est pas installée pour laisser une porte
+    // d'entrée manuelle à tout moment, y compris après un "Plus tard".
+    var floatingMode = null; // 'android' | 'ios' | null
+
+    function showFloatingButton(mode) {
+        floatingMode = mode;
+        if (document.getElementById('pwaFloatingBtn') || isStandalone() || localStorage.getItem(STORAGE_INSTALLED) === '1') {
+            return;
+        }
+
+        var btn = document.createElement('button');
+        btn.id = 'pwaFloatingBtn';
+        btn.type = 'button';
+        btn.innerHTML =
+            '<style>' +
+            '#pwaFloatingBtn{position:fixed;right:18px;bottom:18px;z-index:99998;display:flex;align-items:center;gap:8px;' +
+            'background:#0f3b5e;color:#fff;border:none;border-radius:999px;padding:12px 18px 12px 14px;' +
+            'box-shadow:0 6px 18px rgba(15,59,94,.4);font-family:"Inter",system-ui,sans-serif;font-size:.88rem;font-weight:600;' +
+            'cursor:pointer;animation:pwaFadeIn .3s ease;}' +
+            '#pwaFloatingBtn img{width:22px;height:22px;border-radius:6px;display:block;}' +
+            '@keyframes pwaFadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}' +
+            '</style>' +
+            '<img src="' + BASE + '/assets_site/img/icons/icon-192.png" alt="">' +
+            '<span>Installer l’app</span>';
+
+        btn.addEventListener('click', function () {
+            showModal(floatingMode);
+        });
+
+        document.body.appendChild(btn);
+    }
+
+    function hideFloatingButton() {
+        var btn = document.getElementById('pwaFloatingBtn');
+        if (btn) btn.remove();
+    }
+
     window.addEventListener('beforeinstallprompt', function (e) {
         e.preventDefault();
         deferredPrompt = e;
+        if (!isAdminSection() || !estConnecte()) return;
+
         // Pas de isMobile() ici volontairement : deferredPrompt.prompt() fonctionne
         // aussi sur Chrome/Edge desktop (crée un raccourci comme sur mobile).
-        if (isAdminSection() && estConnecte() && !alreadyHandled()) {
+        showFloatingButton('android');
+        if (!alreadyHandled()) {
             setTimeout(function () { showModal('android'); }, 1200);
         }
     });
@@ -160,11 +205,15 @@
     window.addEventListener('appinstalled', function () {
         localStorage.setItem(STORAGE_INSTALLED, '1');
         localStorage.removeItem(STORAGE_DISMISSED);
+        hideFloatingButton();
     });
 
     // iOS Safari ne déclenche jamais beforeinstallprompt : instructions manuelles.
     // isMobile()/isIos() restent ici : pas d'équivalent iOS desktop.
-    if (isAdminSection() && estConnecte() && isIos() && !alreadyHandled() && isMobile()) {
-        setTimeout(function () { showModal('ios'); }, 1200);
+    if (isAdminSection() && estConnecte() && isIos() && isMobile()) {
+        showFloatingButton('ios');
+        if (!alreadyHandled()) {
+            setTimeout(function () { showModal('ios'); }, 1200);
+        }
     }
 })();
