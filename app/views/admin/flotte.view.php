@@ -152,8 +152,11 @@
                                             <td class="fw-bold"><?= htmlspecialchars($camion->numero_camion) ?></td>
                                             <td><?= htmlspecialchars($camion->matriculle) ?></td>
                                             <td>
-                                                <?php if (($camion->actif ?? 'on') === 'on'): ?>
-                                                    <span class="badge bg-success">Actif</span>
+                                                <?php if (!empty($camion->destination_location)): ?>
+                                                    <span class="badge bg-info">En location</span>
+                                                    <br><small class="text-muted">Vers <?= htmlspecialchars($camion->destination_location) ?><br>Jusqu'au <?= date('d/m/Y', strtotime($camion->retour_prevu)) ?></small>
+                                                <?php elseif (($camion->actif ?? 'on') === 'on'): ?>
+                                                    <span class="badge bg-success">Disponible</span>
                                                 <?php else: ?>
                                                     <span class="badge bg-secondary">Inactif</span>
                                                 <?php endif; ?>

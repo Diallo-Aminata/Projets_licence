@@ -92,17 +92,27 @@ class Camion extends Model
     // session sans exception super_admin (deja le comportement actuel pour les cars).
     public function getTousPourFlotte()
     {
-        // FetchSelectWheres() (et non FetchSelectWhere1()) : renvoie des OBJETS, pour
-        // rester coherent avec $cars dans la meme vue flotte.view.php (Programmation_voyage::
-        // getEtatFlotte() utilise SelectAllDatas(), objets egalement -- une confusion
-        // tableau/objet entre les deux jeux de donnees affiches cote a cote serait facile
-        // a introduire par erreur, cf. les bugs deja rencontres sur ce point dans ce projet).
-        return $this->FetchSelectWheres(
-            "*",
-            "camion",
-            "id_compagnie = :id_compagnie",
-            [":id_compagnie" => $_SESSION['id_compagnie'] ?? null]
-        );
+        $id_compagnie = $_SESSION['id_compagnie'] ?? null;
+        $sql = "SELECT c.*, 
+                (SELECT lc.destination 
+                 FROM location_car lc 
+                 WHERE lc.id_camion = c.id_camion 
+                   AND lc.statut IN ('en_attente', 'valide') 
+                   AND CURDATE() BETWEEN lc.date_depart AND lc.date_retour_prevu 
+                 LIMIT 1) as destination_location,
+                (SELECT lc.date_retour_prevu 
+                 FROM location_car lc 
+                 WHERE lc.id_camion = c.id_camion 
+                   AND lc.statut IN ('en_attente', 'valide') 
+                   AND CURDATE() BETWEEN lc.date_depart AND lc.date_retour_prevu 
+                 LIMIT 1) as retour_prevu
+                FROM camion c
+                WHERE c.id_compagnie = :id_compagnie
+                ORDER BY c.numero_camion";
+        
+        $stmt = $this->connect()->prepare($sql);
+        $stmt->execute([':id_compagnie' => $id_compagnie]);
+        return $stmt->fetchAll(PDO::FETCH_OBJ);
     }
 
     public function deleteCamion($id) {
