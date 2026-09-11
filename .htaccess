@@ -1,6 +1,6 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /Projets_licence/
+    RewriteBase /
 
     # Si le fichier ou le dossier demandé existe, on l'affiche directement
     RewriteCond %{REQUEST_FILENAME} !-d
