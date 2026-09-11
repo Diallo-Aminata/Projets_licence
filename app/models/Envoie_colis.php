@@ -356,7 +356,25 @@ class Envoie_colis extends Model
       // syntaxe tableau ($camion['id_camion']), comme pour getCarsDisponiblesAujourdhui()
       // et getCamionById() ci-dessous -- il faut rester cohérent avec ce format.
       return $this->FetchSelectWhere1(
-         "*",
+         "camion.*, 
+          (SELECT lc.destination 
+           FROM location_car lc 
+           WHERE lc.id_camion = camion.id_camion 
+             AND lc.statut IN ('en_attente', 'valide') 
+             AND CURDATE() BETWEEN lc.date_depart AND lc.date_retour_prevu 
+           LIMIT 1) as destination_location,
+          (SELECT lc.date_depart 
+           FROM location_car lc 
+           WHERE lc.id_camion = camion.id_camion 
+             AND lc.statut IN ('en_attente', 'valide') 
+             AND CURDATE() BETWEEN lc.date_depart AND lc.date_retour_prevu 
+           LIMIT 1) as date_depart,
+          (SELECT lc.date_retour_prevu 
+           FROM location_car lc 
+           WHERE lc.id_camion = camion.id_camion 
+             AND lc.statut IN ('en_attente', 'valide') 
+             AND CURDATE() BETWEEN lc.date_depart AND lc.date_retour_prevu 
+           LIMIT 1) as retour_prevu",
          "camion",
          "actif = :actif AND id_compagnie = :id_compagnie",
          [":actif" => "on", ":id_compagnie" => $_SESSION['id_compagnie']]

@@ -105,7 +105,18 @@ class Camion extends Model
                  WHERE lc.id_camion = c.id_camion 
                    AND lc.statut IN ('en_attente', 'valide') 
                    AND CURDATE() BETWEEN lc.date_depart AND lc.date_retour_prevu 
-                 LIMIT 1) as retour_prevu
+                 LIMIT 1) as retour_prevu,
+                (SELECT COUNT(*) 
+                 FROM envoi e
+                 INNER JOIN colis col ON e.id_coli = col.id_colis
+                 WHERE e.id_camion = c.id_camion AND col.status = 'en_cours'
+                ) as nb_colis_en_cours,
+                (SELECT e.date_enregistre
+                 FROM envoi e
+                 INNER JOIN colis col ON e.id_coli = col.id_colis
+                 WHERE e.id_camion = c.id_camion AND col.status = 'en_cours'
+                 ORDER BY e.date_enregistre DESC LIMIT 1
+                ) as date_envoi_colis
                 FROM camion c
                 WHERE c.id_compagnie = :id_compagnie
                 ORDER BY c.numero_camion";

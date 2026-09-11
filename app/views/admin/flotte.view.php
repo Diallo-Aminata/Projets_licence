@@ -155,6 +155,9 @@
                                                 <?php if (!empty($camion->destination_location)): ?>
                                                     <span class="badge bg-info">En location</span>
                                                     <br><small class="text-muted">Vers <?= htmlspecialchars($camion->destination_location) ?><br>Jusqu'au <?= date('d/m/Y', strtotime($camion->retour_prevu)) ?></small>
+                                                <?php elseif (!empty($camion->nb_colis_en_cours) && $camion->nb_colis_en_cours > 0): ?>
+                                                    <span class="badge bg-primary">Envoi de colis en cours</span>
+                                                    <br><small class="text-muted">Depuis le <?= date('d/m/Y H:i', strtotime($camion->date_envoi_colis)) ?></small>
                                                 <?php elseif (($camion->actif ?? 'on') === 'on'): ?>
                                                     <span class="badge bg-success">Disponible</span>
                                                 <?php else: ?>

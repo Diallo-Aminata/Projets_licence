@@ -70,6 +70,11 @@
                                     <option value="<?= $camion['id_camion'] ?>"
                                         <?= (!empty($camion_selectionne) && $camion['id_camion'] == $camion_selectionne['id_camion']) ? 'selected' : '' ?>>
                                         Camion N°<?= $camion['numero_camion'] ?> — Matricule : <?= htmlspecialchars($camion['matriculle']) ?>
+                                        <?php if (!empty($camion['destination_location'])): ?>
+                                             — État : En location vers <?= htmlspecialchars($camion['destination_location']) ?> (Départ : <?= date('d/m/Y', strtotime($camion['date_depart'])) ?> - Arrivée : <?= date('d/m/Y', strtotime($camion['retour_prevu'])) ?>)
+                                        <?php else: ?>
+                                             — État : Disponible
+                                        <?php endif; ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
