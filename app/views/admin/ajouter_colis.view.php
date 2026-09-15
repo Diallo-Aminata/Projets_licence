@@ -203,7 +203,11 @@
                                                     <div class="row">
                                                         <div class="col-md-6 mt-3">
                                                             <label class="form-label" for="fraix_transaction">Frais transaction</label>
-                                                            <input class="form-control" type="number" id="fraix_transaction" name="fraix_transaction" readonly min="0" />
+                                                            <input class="form-control" type="number" id="fraix_transaction" name="fraix_transaction" readonly min="0" required />
+                                                            <div class="form-check mt-1">
+                                                                <input class="form-check-input" type="checkbox" id="modifierFraisCheck">
+                                                                <label class="form-check-label" for="modifierFraisCheck">Modifier manuellement les frais</label>
+                                                            </div>
                                                         </div>
                                                         <div class="col-md-6 mt-3">
                                                             <label class="form-label" for="code_colis">Code colis</label>

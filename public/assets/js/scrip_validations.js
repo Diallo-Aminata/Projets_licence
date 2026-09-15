@@ -2,8 +2,9 @@
    document.addEventListener("DOMContentLoaded", function () {
     var valeurInput = document.getElementById("valeur");
     var fraisInput = document.getElementById("fraix_transaction");
+    var modifierFraisCheck = document.getElementById("modifierFraisCheck");
 
-    valeurInput.addEventListener("input", function () {
+    function calculerFrais() {
       var valeur = parseFloat(valeurInput.value);
       var frais = 0;
 
@@ -15,7 +16,28 @@
       }
 
       fraisInput.value = frais;
+    }
+
+    valeurInput.addEventListener("input", function () {
+      // Tant que l'agent n'a pas explicitement demandé à modifier les frais,
+      // le calcul automatique (1000 FCFA par tranche de 5000 FCFA de valeur) fait foi.
+      if (!modifierFraisCheck || !modifierFraisCheck.checked) {
+        calculerFrais();
+      }
     });
+
+    // Case "Modifier manuellement les frais" : deverrouille le champ pour une saisie
+    // libre (ex: tarif negocie) ; en la decochant, on revient au calcul automatique.
+    if (modifierFraisCheck) {
+      modifierFraisCheck.addEventListener("change", function () {
+        fraisInput.readOnly = !modifierFraisCheck.checked;
+        if (!modifierFraisCheck.checked) {
+          calculerFrais();
+        } else {
+          fraisInput.focus();
+        }
+      });
+    }
   });
  // fin du scrip 
  // scrip pour numero de telephone

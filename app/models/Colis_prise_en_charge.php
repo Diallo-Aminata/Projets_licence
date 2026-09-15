@@ -25,8 +25,17 @@
             if (empty($nature)) $errors[] = "La nature du colis est obligatoire.";
 
             if (empty($destination)) $errors[] = "La destination est obligatoire.";
-            if (empty($valeur)) $errors[] = "La valeur du colis est obligatoire.";
-            if (empty($fraix_transaction)) $errors[] = "Les frais de transaction sont obligatoires.";
+            // Le frais peut etre recalcule automatiquement (JS) ou saisi manuellement (case
+            // "Modifier manuellement les frais") -- dans les deux cas, ce qui arrive ici est un
+            // champ de formulaire ordinaire, donc pas plus fiable qu'une saisie utilisateur
+            // quelconque : on revalide qu'il s'agit bien d'un nombre positif ou nul, jamais
+            // negatif (qui decrediterait la caisse d'un montant negatif, cf. plus bas).
+            if ($valeur === '' || $valeur === null || !is_numeric($valeur) || (float)$valeur < 0) {
+                $errors[] = "La valeur du colis est obligatoire et doit être un nombre positif.";
+            }
+            if ($fraix_transaction === '' || $fraix_transaction === null || !is_numeric($fraix_transaction) || (float)$fraix_transaction < 0) {
+                $errors[] = "Les frais de transaction sont obligatoires et doivent être un nombre positif.";
+            }
             if (empty($code_colis)) $errors[] = "Le code colis est obligatoire.";
 
             if (count($errors) === 0) {
@@ -173,8 +182,8 @@
             if (empty($nom_colis)) $errors[] = "Le nom du colis est obligatoire.";
             if (empty($nature)) $errors[] = "La nature du colis est obligatoire.";
             if (empty($destination)) $errors[] = "La destination est obligatoire.";
-            if ($valeur === '' || !is_numeric($valeur)) $errors[] = "La valeur du colis est obligatoire.";
-            if ($fraix_transaction === '' || !is_numeric($fraix_transaction)) $errors[] = "Les frais de transaction sont obligatoires.";
+            if ($valeur === '' || !is_numeric($valeur) || (float)$valeur < 0) $errors[] = "La valeur du colis est obligatoire et doit être un nombre positif.";
+            if ($fraix_transaction === '' || !is_numeric($fraix_transaction) || (float)$fraix_transaction < 0) $errors[] = "Les frais de transaction sont obligatoires et doivent être un nombre positif.";
 
             if (count($errors) > 0) {
                 $this->set_swal("Erreurs détectées", implode("<br>", array_map('htmlspecialchars', $errors)), "warning", "#ffc107");

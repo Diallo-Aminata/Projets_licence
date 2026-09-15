@@ -33,6 +33,7 @@
     <h3>Colis</h3>
     <div class="row"><span class="label">Nom :</span> <?= htmlspecialchars($colis['nom_colis'] ?? '-') ?></div>
     <div class="row"><span class="label">Nature :</span> <?= htmlspecialchars($colis['nature'] ?? '-') ?></div>
+    <div class="row"><span class="label">Frais de transaction :</span> <?= number_format($colis['fraix_transaction'] ?? 0, 0, ',', ' ') ?> FCFA</div>
 </div>
 
 <div class="bloc">
