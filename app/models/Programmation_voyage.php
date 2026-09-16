@@ -797,6 +797,77 @@ $fromAndWhere = "liaison_car_trajet
         return true;
     }
 
+    // Desactive (annule) une programmation du jour qui n'a pas encore decolle -- bouton
+    // "Desactiver" de liste_programmer_voyage(), present dans l'UI depuis l'origine mais
+    // jamais cable a aucune logique jusqu'ici. Meme mecanique que debloquerCarJamaisParti()
+    // (annule + libere le car), mais ici c'est une annulation VOLONTAIRE d'un voyage sain,
+    // pas la reparation d'une anomalie -- donc refusee des qu'une place a deja ete vendue,
+    // pour ne jamais faire disparaitre un voyage sous des passagers deja enregistres.
+    public function desactiverProgrammation($id_programmation)
+    {
+        $id_compagnie = $_SESSION['id_compagnie'];
+
+        $prog = $this->fetchOne(
+            "SELECT id_programmation, id_car_programmer, localite_user, statut, decolle_le
+             FROM programmation_voyage WHERE id_programmation = :id AND id_compagnie = :ic",
+            [':id' => $id_programmation, ':ic' => $id_compagnie]
+        );
+
+        if (!$prog) {
+            $this->set_flash("Programmation introuvable.", "danger");
+            return false;
+        }
+        if ($prog['statut'] !== 'active') {
+            $this->set_flash("Cette programmation est déjà annulée.", "warning");
+            return false;
+        }
+        if (!empty($prog['decolle_le'])) {
+            $this->set_flash("Ce car a déjà décollé : impossible de désactiver ce voyage.", "warning");
+            return false;
+        }
+
+        $pdo = $this->connect();
+        $pdo->beginTransaction();
+        try {
+            // Reverification sous verrou juste avant d'ecrire : une vente de billet
+            // concurrente entre le check ci-dessus et cette transaction ne doit jamais
+            // pouvoir etre ecrasee par une desactivation qui la croirait encore a zero.
+            $stmtCar = $pdo->prepare("SELECT nbr_place_reserve FROM car WHERE id_car = :id_car FOR UPDATE");
+            $stmtCar->execute([':id_car' => $prog['id_car_programmer']]);
+            $car = $stmtCar->fetch(PDO::FETCH_ASSOC);
+
+            if (!$car || (int)$car['nbr_place_reserve'] > 0) {
+                $pdo->rollBack();
+                $this->set_flash("Impossible de désactiver : des places ont déjà été vendues sur ce voyage.", "danger");
+                return false;
+            }
+
+            $stmtMaj = $pdo->prepare(
+                "UPDATE programmation_voyage SET statut = 'annulee'
+                 WHERE id_programmation = :id AND id_compagnie = :ic AND statut = 'active'"
+            );
+            $stmtMaj->execute([':id' => $id_programmation, ':ic' => $id_compagnie]);
+
+            if ($stmtMaj->rowCount() === 0) {
+                $pdo->rollBack();
+                $this->set_flash("Cette programmation vient d'être modifiée par quelqu'un d'autre. Veuillez réessayer.", "danger");
+                return false;
+            }
+
+            $pdo->prepare("UPDATE car SET status_car = :origine, nbr_place_reserve = 0 WHERE id_car = :id_car")
+                ->execute([':origine' => $prog['localite_user'], ':id_car' => $prog['id_car_programmer']]);
+
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            $this->set_flash("Erreur lors de la désactivation.", "danger");
+            return false;
+        }
+
+        $this->set_flash("Voyage désactivé : le car est de nouveau disponible.", "success");
+        return true;
+    }
+
     public function getProgrammationById($id)
     {
         return $this->FetchSelectWhereS(

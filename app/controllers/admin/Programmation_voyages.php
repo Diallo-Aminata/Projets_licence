@@ -368,4 +368,23 @@ class Programmation_voyages extends Controller
             'listehoraire' => $listehoraire
         ]);
     }
+
+    // Bouton "Désactiver" de liste_programmer_voyage() : annule un voyage du jour pas
+    // encore décollé et sans place vendue (cf. Programmation_voyage::desactiverProgrammation()).
+    public function desactiver($id_programmation)
+    {
+        $programmation_voyage = new Programmation_voyage();
+
+        // Même restriction que edit() : accès en écriture réservé à ces rôles, même si
+        // la permission Programme_programmation_voyage venait à être assignée à un autre.
+        if (!in_array($_SESSION['droit'] ?? null, ['Admin', 'chef_d_escale', 'secretaire'], true)) {
+            $programmation_voyage->set_flash("Accès refusé ou session invalide", "danger");
+            header("Location: " . BASE_URL . "/admin/Programmation_voyages/liste_programmer_voyage");
+            exit;
+        }
+
+        $programmation_voyage->desactiverProgrammation($id_programmation);
+        header("Location: " . BASE_URL . "/admin/Programmation_voyages/liste_programmer_voyage");
+        exit;
+    }
 }

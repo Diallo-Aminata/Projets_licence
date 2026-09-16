@@ -115,7 +115,10 @@
                                                                 data-bs-toggle="modal" data-bs-target="#modalTransfert">
                                                                 <i class="bx bx-transfer me-2"></i>Transférer les passagers</a></li>
                                                     <?php endif; ?>
-                                                    <li><a class="dropdown-item text-danger" href="#"><i class="bx bx-x-circle me-2"></i>Désactiver</a></li>
+                                                    <li><a class="dropdown-item text-danger desactiver-programmation-btn" href="#"
+                                                            data-url="<?= BASE_URL ?>/admin/Programmation_voyages/desactiver/<?= $listeProgrammers->id_programmation ?>"
+                                                            data-numero-car="<?= htmlspecialchars($listeProgrammers->numero_car) ?>">
+                                                            <i class="bx bx-x-circle me-2"></i>Désactiver</a></li>
                                                     <?php endif; ?>
                                                 </ul>
                                             </div>
@@ -225,6 +228,27 @@
                     error: function() {
                         $('#transfertLoading').hide();
                         $('#transfertAucune').text('Erreur lors de la recherche des gares compatibles.').show();
+                    }
+                });
+            });
+
+            $('.desactiver-programmation-btn').click(function(e) {
+                e.preventDefault();
+                const url = $(this).data('url');
+                const numeroCar = $(this).data('numero-car');
+
+                Swal.fire({
+                    title: 'Désactiver ce voyage ?',
+                    text: `Le voyage du car n°${numeroCar} sera annulé et le car redeviendra disponible. Impossible si des places ont déjà été vendues dessus.`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Oui, désactiver',
+                    cancelButtonText: 'Annuler'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = url;
                     }
                 });
             });
