@@ -1067,7 +1067,14 @@
                     AND b.destinationId = pv.id_trajet AND b.departId = pv.localite_user
                     AND b.id_compagnie = pv.id_compagnie
                     AND (b.statut_embarquement IS NULL OR b.statut_embarquement != 'embarque')
-                    AND (b.status_billets IS NULL OR b.status_billets != 'annule')
+                    -- status_billets = '' (pas seulement != 'annule') : meme condition que
+                    -- getBilletsPourEmbarquement() ci-dessus -- un billet avec un report/une
+                    -- annulation deja demande(e) a disparu de la liste d'embarquement (en
+                    -- attente de validation Admin ailleurs) et ne doit donc plus compter comme
+                    -- restant ici non plus, sinon ce compteur (et le blocage du bouton Faire
+                    -- decoller dans Programmation_voyage::decollerCar(), meme correction) reste
+                    -- bloque sur un passager que l'agent ne peut plus traiter depuis cet ecran.
+                    AND (b.status_billets IS NULL OR b.status_billets = '')
                 ) AS nb_restants
          FROM programmation_voyage pv
          INNER JOIN car c ON c.id_car = pv.id_car_programmer

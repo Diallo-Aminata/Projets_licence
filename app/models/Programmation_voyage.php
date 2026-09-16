@@ -539,12 +539,20 @@ $fromAndWhere = "liaison_car_trajet
         return false;
       }
 
+      // status_billets = '' (pas seulement != 'annule') : un billet avec un report ou une
+      // annulation deja DEMANDE(e) ('report_demande'/'report_transmis'/'annulation_demandee'/
+      // 'annulation_en_cours') est hors des mains de l'agent -- il a disparu de la liste
+      // d'embarquement (cf. Liste_du_jour::getBilletsPourEmbarquement(), meme condition) en
+      // attendant sa validation par l'Admin ailleurs, donc il ne doit plus non plus bloquer le
+      // decollage : sinon le bus reste bloque indefiniment sur un passager que l'agent ne
+      // peut plus traiter depuis cet ecran (source d'un bug confirme le 2026-09-16 : un
+      // report deja transmis empechait "Faire decoller" sans que rien ne soit actionnable).
       $restants = $this->fetchOne(
         "SELECT COUNT(*) AS n FROM billets
          WHERE jourVoyage = :jour AND Heur_departs = :heure AND destinationId = :dest
            AND departId = :depart AND id_compagnie = :id_compagnie
            AND (statut_embarquement IS NULL OR statut_embarquement != 'embarque')
-           AND (status_billets IS NULL OR status_billets != 'annule')",
+           AND (status_billets IS NULL OR status_billets = '')",
         [
           ':jour' => $prog['date_enregistre'], ':heure' => $prog['id_horaire'],
           ':dest' => $prog['id_trajet'], ':depart' => $prog['localite_user'],
