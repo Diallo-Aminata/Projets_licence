@@ -858,4 +858,29 @@ class Caisse extends Controller
             'total_ecarts'  => $totalEcarts,
         ]);
     }
+
+    /**
+     * Vue d'anomalie pour l'Admin/PDG : toutes les caisses oubliées (jamais fermées) ou
+     * fermées-non-versées d'un jour précédent, toutes gares et tous opérateurs confondus
+     * (billettières, agents colis, chefs d'escale). Lecture seule — régulariser une caisse
+     * reste réservé à son titulaire (cf. "Ma Caisse" > Caisses anciennes), personne d'autre
+     * ne peut fermer ou verser une caisse qui n'est pas la sienne.
+     */
+    public function anomalies_caisses()
+    {
+        if (!in_array($_SESSION['droit'] ?? null, ['Admin', 'PDG'], true)) {
+            $model = new Caisse_utilisateur();
+            $model->set_flash("Accès réservé à l'Admin/PDG.", "danger");
+            header("Location: " . BASE_URL . "/admin/Homes/home");
+            exit;
+        }
+
+        $idCompagnie = (int)($_SESSION['id_compagnie'] ?? 0);
+        $model       = new Caisse_utilisateur();
+        $anomalies   = $model->getCaissesAnciennesCompagnie($idCompagnie);
+
+        $this->view('admin/anomalies_caisses', [
+            'anomalies' => $anomalies,
+        ]);
+    }
 }

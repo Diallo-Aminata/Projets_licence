@@ -201,6 +201,7 @@
 
                   <?php if (in_array($_SESSION['droit'] ?? null, ['Admin', 'PDG'], true)): ?>
                     <li> <a href="<?= BASE_URL ?>/admin/Caisse/rapport_proprietaire"><i class="bi bi-arrow-right-short"></i>Rapport Compagnie</a></li>
+                    <li> <a href="<?= BASE_URL ?>/admin/Caisse/anomalies_caisses"><i class="bi bi-arrow-right-short"></i>Anomalies de caisse</a></li>
                   <?php endif; ?>
                 <?php } ?>
                 <?php if ($user->userHasPermission('Caisse_billant') && ($_SESSION['droit'] ?? null) !== 'Utilisateur') {

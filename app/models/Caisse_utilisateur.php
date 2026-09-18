@@ -78,6 +78,33 @@ class Caisse_utilisateur extends Model
     }
 
     /**
+     * Meme principe que getCaissesAnciennesEnAttente() mais pour TOUTE la compagnie, toutes
+     * gares confondues, tous operateurs confondus (billettieres, agents colis, ET chefs
+     * d'escale eux-memes s'ils vendent aussi) : vue d'anomalie pour l'Admin/PDG, qui ne
+     * devrait pas avoir a naviguer gare par gare et date par date (cf. caisses_escale()) pour
+     * repérer une caisse oubliée quelque part dans la compagnie.
+     */
+    public function getCaissesAnciennesCompagnie(int $idCompagnie): array
+    {
+        $pdo = $this->connect();
+        $stmt = $pdo->prepare("
+            SELECT cu.*, a.localite, a.numeroGare, u.utilisateurs AS nom_operateur, u.droit,
+                   v.statut AS statut_versement,
+                   DATEDIFF(CURDATE(), cu.date_service) AS jours_ecoules
+            FROM caisse_utilisateur cu
+            INNER JOIN agence a ON cu.id_agence = a.idAgence
+            INNER JOIN utilisateur u ON cu.id_utilisateur = u.idUser
+            LEFT JOIN versements_caisse v ON v.id_caisse_user = cu.id_caisse_user AND v.statut != 'rejete'
+            WHERE cu.id_compagnie = :id_compagnie
+              AND cu.date_service < CURDATE()
+              AND cu.statut IN ('ouverte', 'fermee')
+            ORDER BY cu.date_service ASC, a.localite ASC
+        ");
+        $stmt->execute([':id_compagnie' => $idCompagnie]);
+        return $stmt->fetchAll(PDO::FETCH_OBJ);
+    }
+
+    /**
      * Ouvre une nouvelle caisse pour l'utilisateur connecté.
      * Refuse si une caisse est déjà ouverte aujourd'hui.
      */
