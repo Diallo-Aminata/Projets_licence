@@ -502,12 +502,17 @@ class Caisse extends Controller
         $caisseFermee  = $caisse ? null : $model->getCaisseFermeeNonVersee($idUser);
         $journal       = $caisse ? $model->getJournal($caisse->id_caisse_user) : [];
         $historique    = $model->getHistoriqueCaisses($idUser, 20);
+        // Caisses d'un jour precedent jamais fermees (oubli) ou fermees mais jamais versees :
+        // sinon invisibles ici (les deux methodes ci-dessus sont scopees a aujourd'hui) et donc
+        // impossibles a regulariser soi-meme.
+        $caissesAnciennes = $model->getCaissesAnciennesEnAttente($idUser);
 
         $this->view('admin/ma_caisse', [
-            'caisse'       => $caisse,
-            'caisseFermee' => $caisseFermee,
-            'journal'      => $journal,
-            'historique'   => $historique,
+            'caisse'           => $caisse,
+            'caisseFermee'     => $caisseFermee,
+            'journal'          => $journal,
+            'historique'       => $historique,
+            'caissesAnciennes' => $caissesAnciennes,
         ]);
     }
 
@@ -557,12 +562,30 @@ class Caisse extends Controller
         ]);
     }
 
-    /** Formulaire + traitement de fermeture de la caisse individuelle. */
-    public function fermer_caisse_user()
+    /**
+     * Formulaire + traitement de fermeture de la caisse individuelle.
+     *
+     * $idCaisseUser optionnel : cible une caisse OUBLIEE (jour precedent, jamais fermee,
+     * cf. "Ma Caisse" > Caisses anciennes) plutot que celle du jour. Sans lui, comportement
+     * inchange (caisse ouverte d'aujourd'hui).
+     */
+    public function fermer_caisse_user($idCaisseUser = null)
     {
         $idUser = (int)($_SESSION['id_utilisateur'] ?? 0);
         $model  = new Caisse_utilisateur();
-        $caisse = $model->getCaisseOuverte($idUser);
+
+        if ($idCaisseUser) {
+            $pdo  = $model->connect();
+            $stmt = $pdo->prepare("
+                SELECT * FROM caisse_utilisateur
+                WHERE id_caisse_user = :id AND id_utilisateur = :u AND statut = 'ouverte'
+                LIMIT 1
+            ");
+            $stmt->execute([':id' => (int)$idCaisseUser, ':u' => $idUser]);
+            $caisse = $stmt->fetch(PDO::FETCH_OBJ) ?: null;
+        } else {
+            $caisse = $model->getCaisseOuverte($idUser);
+        }
 
         if (!$caisse) {
             $model->set_flash("Aucune caisse ouverte à fermer.", "warning");
@@ -585,22 +608,35 @@ class Caisse extends Controller
         ]);
     }
 
-    /** Versement de l'opérateur vers le chef d'escale. */
-    public function verser()
+    /**
+     * Versement de l'opérateur vers le chef d'escale.
+     *
+     * $idCaisseUser optionnel : cible une caisse ANCIENNE deja fermee mais jamais versee
+     * (jour precedent, cf. "Ma Caisse" > Caisses anciennes) plutot que celle du jour. Sans
+     * lui, comportement inchange (caisse fermee d'aujourd'hui).
+     */
+    public function verser($idCaisseUser = null)
     {
         $this->requirePermission('Caisse_modifier');
-        $idUser      = (int)($_SESSION['id_utilisateur'] ?? 0);
-        $idAgence    = (int)($_SESSION['id_agence'] ?? 0);
-        $idCompagnie = (int)($_SESSION['id_compagnie'] ?? 0);
-        $model       = new Caisse_utilisateur();
+        $idUser = (int)($_SESSION['id_utilisateur'] ?? 0);
+        $model  = new Caisse_utilisateur();
+        $pdo    = $model->connect();
 
-        $pdo  = $model->connect();
-        $stmt = $pdo->prepare("
-            SELECT * FROM caisse_utilisateur
-            WHERE id_utilisateur = :u AND date_service = CURDATE() AND statut = 'fermee'
-            LIMIT 1
-        ");
-        $stmt->execute([':u' => $idUser]);
+        if ($idCaisseUser) {
+            $stmt = $pdo->prepare("
+                SELECT * FROM caisse_utilisateur
+                WHERE id_caisse_user = :id AND id_utilisateur = :u AND statut = 'fermee'
+                LIMIT 1
+            ");
+            $stmt->execute([':id' => (int)$idCaisseUser, ':u' => $idUser]);
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT * FROM caisse_utilisateur
+                WHERE id_utilisateur = :u AND date_service = CURDATE() AND statut = 'fermee'
+                LIMIT 1
+            ");
+            $stmt->execute([':u' => $idUser]);
+        }
         $caisse = $stmt->fetch(PDO::FETCH_OBJ);
 
         if (!$caisse) {
@@ -608,6 +644,24 @@ class Caisse extends Controller
             header("Location: " . BASE_URL . "/admin/Caisse/ma_caisse");
             exit;
         }
+
+        // Un versement peut deja etre en_attente pour cette caisse (elle reste 'fermee' tant
+        // qu'il n'est pas valide, cf. creerVersement()) : rediriger plutot que d'afficher un
+        // formulaire qui echouerait de toute facon sur le garde-fou anti-doublon du modele.
+        $dejaEnAttente = $pdo->prepare(
+            "SELECT 1 FROM versements_caisse WHERE id_caisse_user = :id AND statut != 'rejete' LIMIT 1"
+        );
+        $dejaEnAttente->execute([':id' => $caisse->id_caisse_user]);
+        if ($dejaEnAttente->fetchColumn()) {
+            $model->set_flash("Un versement est déjà en attente de validation pour cette caisse.", "info");
+            header("Location: " . BASE_URL . "/admin/Caisse/ma_caisse");
+            exit;
+        }
+
+        // Gare/compagnie de LA CAISSE elle-meme (pas de la session) : une caisse ancienne peut
+        // dater d'une periode ou l'operateur etait affecte a une autre gare.
+        $idAgence    = (int)$caisse->id_agence;
+        $idCompagnie = (int)$caisse->id_compagnie;
 
         $chefs = $model->getChefsDEscale($idAgence, $idCompagnie);
 

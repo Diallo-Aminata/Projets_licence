@@ -39,9 +39,10 @@ class Caisse_utilisateur extends Model
     {
         $pdo = $this->connect();
         $stmt = $pdo->prepare("
-            SELECT cu.*, a.localite, a.numeroGare
+            SELECT cu.*, a.localite, a.numeroGare, v.statut AS statut_versement
             FROM caisse_utilisateur cu
             INNER JOIN agence a ON cu.id_agence = a.idAgence
+            LEFT JOIN versements_caisse v ON v.id_caisse_user = cu.id_caisse_user AND v.statut != 'rejete'
             WHERE cu.id_utilisateur = :id_user
               AND cu.date_service = CURDATE()
               AND cu.statut = 'fermee'
@@ -49,6 +50,31 @@ class Caisse_utilisateur extends Model
         ");
         $stmt->execute([':id_user' => $idUser]);
         return $stmt->fetch(PDO::FETCH_OBJ) ?: null;
+    }
+
+    /**
+     * Caisses "oubliées" d'un utilisateur : encore ouvertes ou fermées-non-versées, mais
+     * datant d'un jour AVANT aujourd'hui (celle du jour même est déjà couverte par
+     * getCaisseOuverte()/getCaisseFermeeNonVersee() ci-dessus). Sans ça, une caisse jamais
+     * fermée la veille restait invisible de "Ma Caisse" dès le lendemain (les deux méthodes
+     * ci-dessus sont scopées à CURDATE()) : l'opérateur ne pouvait plus ni la fermer ni la
+     * verser lui-même, et personne d'autre n'a de moyen de le faire à sa place.
+     */
+    public function getCaissesAnciennesEnAttente(int $idUser): array
+    {
+        $pdo = $this->connect();
+        $stmt = $pdo->prepare("
+            SELECT cu.*, a.localite, a.numeroGare, v.statut AS statut_versement
+            FROM caisse_utilisateur cu
+            INNER JOIN agence a ON cu.id_agence = a.idAgence
+            LEFT JOIN versements_caisse v ON v.id_caisse_user = cu.id_caisse_user AND v.statut != 'rejete'
+            WHERE cu.id_utilisateur = :id_user
+              AND cu.date_service < CURDATE()
+              AND cu.statut IN ('ouverte', 'fermee')
+            ORDER BY cu.date_service ASC
+        ");
+        $stmt->execute([':id_user' => $idUser]);
+        return $stmt->fetchAll(PDO::FETCH_OBJ);
     }
 
     /**
@@ -388,10 +414,14 @@ class Caisse_utilisateur extends Model
             ]);
             $idVersement = $pdo->lastInsertId();
 
-            // Passer la caisse en statut 'versee'
-            $pdo->prepare("UPDATE caisse_utilisateur SET statut = 'versee' WHERE id_caisse_user = :id")
-                ->execute([':id' => $idCaisseUser]);
-
+            // La caisse reste 'fermee' tant que le versement n'est pas VALIDE par le chef
+            // d'escale (cf. validerVersement()) : elle ne doit passer 'versee' qu'a ce moment-la,
+            // pas des la simple soumission de la demande, sinon l'ecran "Ma Caisse" affiche
+            // "Versee" avant meme que quiconque n'ait valide quoi que ce soit -- et si la demande
+            // est rejetee, rien ne repasse la caisse a 'fermee', bloquant tout nouveau versement
+            // pour cette caisse (creerVersement() exige statut = 'fermee' plus haut). Le garde-fou
+            // anti-doublon ci-dessus (COUNT ... WHERE statut != 'rejete') suffit deja a empecher
+            // une deuxieme demande tant que celle-ci est en_attente.
             $this->insererJournal($pdo, $idCaisseUser, $idUser, 'versement', "VRS-$idVersement", $montant,
                 "Versement de " . number_format($montant, 0, ',', ' ') . " FCFA au chef d'escale");
 
@@ -464,6 +494,15 @@ class Caisse_utilisateur extends Model
                 $pdo->rollBack();
                 $this->set_flash("Ce versement a déjà été traité entre-temps.", "warning");
                 return false;
+            }
+
+            // La caisse ne passe 'versee' qu'ICI, a la validation reelle par le chef d'escale
+            // (cf. creerVersement(), qui ne la touche plus a la simple soumission). En cas de
+            // rejet, la caisse est deja restee 'fermee' depuis sa fermeture initiale : rien a
+            // faire, l'operateur peut directement soumettre un nouveau versement corrige.
+            if ($action === 'valide') {
+                $pdo->prepare("UPDATE caisse_utilisateur SET statut = 'versee' WHERE id_caisse_user = :id")
+                    ->execute([':id' => $versement->id_caisse_user]);
             }
 
             $pdo->commit();
