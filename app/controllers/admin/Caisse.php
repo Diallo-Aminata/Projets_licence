@@ -747,6 +747,7 @@ class Caisse extends Controller
     /** Vue chef d'escale / Admin : toutes les caisses + versements en attente d'une gare. */
     public function caisses_escale()
     {
+        $this->refuserBilanPourUtilisateurSimple();
         $model = new Caisse_utilisateur();
         [$idAgence, $estAdmin, $listeAgences] = $this->resolveGareEscale($model);
         $idChef = (int)($_SESSION['id_utilisateur'] ?? 0);
@@ -836,6 +837,16 @@ class Caisse extends Controller
     /** Vue consolidée pour le propriétaire : toutes les escales. */
     public function rapport_proprietaire()
     {
+        // Rapport compagnie entiere (toutes gares confondues) : reserve Admin/PDG, meme
+        // restriction que le lien de la sidebar (chef_d_escale ne voit que sa propre gare,
+        // via caisses_escale()) -- aucun controle serveur n'existait avant, seul le lien
+        // etait cache, donc accessible en tapant l'URL par n'importe quel role.
+        if (!in_array($_SESSION['droit'] ?? null, ['Admin', 'PDG'], true)) {
+            (new Configuration())->set_flash("Accès réservé à l'Admin/PDG.", "danger");
+            header("Location: " . BASE_URL . "/admin/Caisse/ma_caisse");
+            exit;
+        }
+
         $idCompagnie = (int)($_SESSION['id_compagnie'] ?? 0);
         $date        = $_GET['date'] ?? date('Y-m-d');
         $model       = new Caisse_utilisateur();
