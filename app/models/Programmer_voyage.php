@@ -256,10 +256,20 @@
         // trajet identique (même départ/destination) : sans ce contrôle, on pouvait créer un
         // doublon simplement en éditant l'heure, en contournant la vérification déjà en
         // place à la création (voir saveProgrammer()). Retourne 'doublon' dans ce cas.
+        //
+        // Retourne aussi 'billets_existants' si des billets (aujourd'hui/futur) ou une
+        // programmation active du jour utilisent déjà l'ANCIENNE heure de ce trajet :
+        // heureDepart/id_horaire/Heur_departs sont chacun une simple copie de texte, sans
+        // lien permanent entre programmer/programmation_voyage/billets (cf. saveProgrammer()) --
+        // changer l'heure ici les désynchroniserait silencieusement (billets déjà vendus
+        // et car déjà programmé restant sur l'heure d'avant, invisibles depuis l'écran
+        // d'embarquement). Pour un changement jour-par-jour, Programmation_voyage::
+        // updateProgrammation() gère déjà ça correctement (choix "les billets suivent" /
+        // "un autre car reprend l'ancien créneau") -- c'est la voie à utiliser à la place.
         public function editHoraire($idProgrammer, $heureDepart, $rdv)
         {
             $trajet = $this->FetchSelectWhere(
-                "idDepart, idDestination, id_compagnie",
+                "idDepart, idDestination, id_compagnie, heureDepart",
                 "programmer",
                 "idProgrammer = :id",
                 [":id" => $idProgrammer]
@@ -283,6 +293,37 @@
             );
             if ($doublon) {
                 return 'doublon';
+            }
+
+            if ($heureDepart !== $trajet->heureDepart) {
+                // Meme technique que saveProgrammer() ci-dessus : billets/programmation_voyage
+                // stockent une localite (texte), pas un id_agence.
+                $departAgence = $this->FetchSelectWhere("localite", "agence", "idAgence = :id", [":id" => $trajet->idDepart]);
+                $destinationAgence = $this->FetchSelectWhere("localite", "agence", "idAgence = :id", [":id" => $trajet->idDestination]);
+                $localiteDepart = $departAgence->localite ?? null;
+                $localiteDestination = $destinationAgence->localite ?? null;
+
+                $billetExistant = $this->fetchOne(
+                    "SELECT idBillets FROM billets
+                     WHERE departId = :depart AND destinationId = :dest AND Heur_departs = :heure
+                       AND id_compagnie = :id_compagnie AND jourVoyage >= CURDATE() LIMIT 1",
+                    [
+                        ":depart" => $localiteDepart, ":dest" => $localiteDestination,
+                        ":heure" => $trajet->heureDepart, ":id_compagnie" => $trajet->id_compagnie,
+                    ]
+                );
+                $programmationActive = $this->fetchOne(
+                    "SELECT id_programmation FROM programmation_voyage
+                     WHERE localite_user = :depart AND id_trajet = :dest AND id_horaire = :heure
+                       AND id_compagnie = :id_compagnie AND statut = 'active' AND date_enregistre >= CURDATE() LIMIT 1",
+                    [
+                        ":depart" => $localiteDepart, ":dest" => $localiteDestination,
+                        ":heure" => $trajet->heureDepart, ":id_compagnie" => $trajet->id_compagnie,
+                    ]
+                );
+                if ($billetExistant || $programmationActive) {
+                    return 'billets_existants';
+                }
             }
 
             $req = "UPDATE programmer

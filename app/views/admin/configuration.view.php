@@ -222,7 +222,9 @@
                             data-telephone="<?= htmlspecialchars($listes->telephone ?? '') ?>"
                             data-motpasse="<?= $listes->motPasse ?>"
                             data-droit="<?= $listes->droit ?>"
-                            data-profile="<?= htmlspecialchars($listes->profile ?? '') ?>">
+                            data-profile="<?= htmlspecialchars($listes->profile ?? '') ?>"
+                            data-id-agence="<?= htmlspecialchars($listes->id_agence ?? '') ?>"
+                            data-gares='<?= htmlspecialchars(json_encode($garesParCompagnie[(int)($listes->id_compagnie ?? 0)] ?? []), ENT_QUOTES) ?>'>
                           </i>
 
                           <!-- Activation/Désactivation -->
@@ -402,6 +404,14 @@
               </select>
             </div>
 
+            <div class="mb-3" id="edit_gareField" style="display: none;">
+              <label for="edit_id_agence" class="form-label fw-semibold">Gare</label>
+              <select class="form-select" id="edit_id_agence" name="id_agence">
+                  <option value="" disabled selected>Choisissez une gare</option>
+              </select>
+              <div class="form-text">Le changement de gare ne prend effet qu'à la prochaine connexion de la personne.</div>
+            </div>
+
             <div class="mb-3" id="edit_serviceField" style="display: none;">
               <label for="edit_profile" class="form-label fw-semibold">Service</label>
               <select class="form-select" id="edit_profile" name="profile">
@@ -431,6 +441,8 @@
       var editDroit = document.getElementById('edit_droit');
       var editServiceField = document.getElementById('edit_serviceField');
       var editProfile = document.getElementById('edit_profile');
+      var editGareField = document.getElementById('edit_gareField');
+      var editIdAgence = document.getElementById('edit_id_agence');
 
       function toggleServiceField() {
         if (editDroit.value === 'Utilisateur') {
@@ -438,6 +450,19 @@
         } else {
           editServiceField.style.display = 'none';
           editProfile.value = '';
+        }
+      }
+
+      // Meme regle que le formulaire d'ajout (add_utilisateur.view.php) : gare obligatoire
+      // seulement pour Utilisateur/chef_d_escale, jamais pour Admin/PDG/secretaire.
+      function toggleGareField() {
+        if (editDroit.value === 'Utilisateur' || editDroit.value === 'chef_d_escale') {
+          editGareField.style.display = 'block';
+          editIdAgence.setAttribute('required', 'required');
+        } else {
+          editGareField.style.display = 'none';
+          editIdAgence.removeAttribute('required');
+          editIdAgence.value = '';
         }
       }
 
@@ -453,10 +478,28 @@
           if (this.dataset.profile) {
             editProfile.value = this.dataset.profile;
           }
+
+          // Reconstruit les options de gare a partir des gares de LA COMPAGNIE de ce
+          // compte precis (data-gares, deja filtre cote serveur) : un select unique
+          // statique melangerait les gares de compagnies differentes pour un super_admin.
+          var gares = [];
+          try { gares = JSON.parse(this.dataset.gares || '[]'); } catch (e) { gares = []; }
+          var options = '<option value="" disabled selected>Choisissez une gare</option>';
+          gares.forEach(function(g) {
+            options += '<option value="' + g.idAgence + '">' + g.localite + ' ( ' + g.numeroGare + ' )</option>';
+          });
+          editIdAgence.innerHTML = options;
+          if (this.dataset.idAgence) {
+            editIdAgence.value = this.dataset.idAgence;
+          }
+          toggleGareField();
         });
       });
 
-      editDroit.addEventListener('change', toggleServiceField);
+      editDroit.addEventListener('change', function() {
+        toggleServiceField();
+        toggleGareField();
+      });
 
       // Suppression : le bouton ne s'active que si l'email saisi correspond exactement
       document.querySelectorAll('.confirm-delete-input').forEach(function(input) {

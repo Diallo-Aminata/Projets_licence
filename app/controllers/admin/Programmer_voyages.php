@@ -221,6 +221,15 @@ class Programmer_voyages extends  Controller
           header("Location: " . BASE_URL . "/admin/Programmer_voyages/index");
           exit;
         }
+        if ($resultatHoraire === 'billets_existants') {
+          $programmer_voyage->set_flash(
+            "Impossible de changer l'heure : des billets ou une programmation active utilisent déjà l'heure actuelle de ce trajet. " .
+            "Pour un changement ponctuel (un seul jour), utilisez plutôt \"Modifier la programmation\" depuis l'écran de programmation du voyage.",
+            "danger"
+          );
+          header("Location: " . BASE_URL . "/admin/Programmer_voyages/index");
+          exit;
+        }
       }
 
       if (!empty($_POST['prix_escale']) && is_array($_POST['prix_escale'])) {

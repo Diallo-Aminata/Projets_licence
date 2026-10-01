@@ -172,13 +172,44 @@ class Configurations extends Controller
 
             $profile = ($droit === 'Utilisateur') ? ($_POST['profile'] ?? null) : null;
 
-            $updateFields = "utilisateurs = :utilisateurs, emailUser = :emailUser, telephone = :telephone, droit = :droit, profile = :profile";
+            // Meme regle qu'a la creation (Configuration::saveUtilisateur()) : un chef d'escale
+            // ou un simple Utilisateur doit etre rattache a une gare (ses operations -- billets,
+            // colis, caisse -- sont scopees dessus) ; un Admin/PDG/secretaire, rattache a toute
+            // la compagnie, n'en a pas. Le changement ne prend effet qu'a la prochaine connexion
+            // de la personne : sa session actuelle garde l'ancienne gare jusqu'a reconnexion.
+            $id_agence = !empty($_POST['id_agence']) ? (int)$_POST['id_agence'] : null;
+            if (!in_array($droit, ['Admin', 'PDG', 'secretaire'], true)) {
+                if (!$id_agence) {
+                    $configuration->set_flash("La gare est obligatoire pour ce type de compte.", "danger");
+                    header("Location: " . $_SERVER['REQUEST_URI']);
+                    exit;
+                }
+                // IDOR : la gare postee doit appartenir a la meme compagnie que le compte cible
+                // (celle de l'Admin connecte, ou celle du compte cible pour un super_admin).
+                $id_compagnie_cible = $role === 'super_admin'
+                    ? (int)($configuration->getUserById($idUser)['id_compagnie'] ?? 0)
+                    : $id_compagnie;
+                $gareValide = $configuration->fetchOne(
+                    "SELECT idAgence FROM agence WHERE idAgence = :id AND id_compagnie = :ic",
+                    [':id' => $id_agence, ':ic' => $id_compagnie_cible]
+                );
+                if (!$gareValide) {
+                    $configuration->set_flash("Gare invalide pour la compagnie de ce compte.", "danger");
+                    header("Location: " . $_SERVER['REQUEST_URI']);
+                    exit;
+                }
+            } else {
+                $id_agence = null;
+            }
+
+            $updateFields = "utilisateurs = :utilisateurs, emailUser = :emailUser, telephone = :telephone, droit = :droit, profile = :profile, id_agence = :id_agence";
             $params = [
                 ":utilisateurs" => $utilisateurs,
                 ":emailUser" => $emailUser,
                 ":telephone" => $telephone !== '' ? $telephone : null,
                 ":droit" => $droit,
                 ":profile" => $profile,
+                ":id_agence" => $id_agence,
                 ":id" => $idUser
             ];
 
@@ -202,7 +233,8 @@ class Configurations extends Controller
         }
 
         $userColumns = 'utilisateur.idUser, utilisateur.utilisateurs, utilisateur.emailUser, utilisateur.telephone, utilisateur.motPasse,
-            utilisateur.droit, utilisateur.profile, utilisateur.status, utilisateur.photo, agence.numeroGare';
+            utilisateur.droit, utilisateur.profile, utilisateur.status, utilisateur.photo, utilisateur.id_compagnie,
+            utilisateur.id_agence, agence.numeroGare';
 
         // Les comptes super_admin n'apparaissent pas dans cette liste (ce rôle n'est ni
         // géré ni visible ici pour les autres), SAUF l'utilisateur connecté lui-même :
@@ -238,8 +270,27 @@ class Configurations extends Controller
             );
         }
 
+        // Gares disponibles pour le select "Gare" du modal de modification, regroupees par
+        // compagnie : un Admin ne gere qu'une seule compagnie (la sienne), mais un super_admin
+        // edite des comptes de plusieurs compagnies depuis cette meme liste -- il faut donc les
+        // bonnes gares pour CHAQUE ligne, jamais un select unique qui melangerait tout.
+        if ($role === 'super_admin') {
+            $toutesGares = $configuration->SelectAllData('idAgence, localite, numeroGare, id_compagnie', 'agence');
+        } else {
+            $toutesGares = $configuration->FetchSelectWheres(
+                'idAgence, localite, numeroGare, id_compagnie',
+                'agence',
+                'id_compagnie = :id_compagnie',
+                ['id_compagnie' => $id_compagnie]
+            );
+        }
+        $garesParCompagnie = [];
+        foreach ($toutesGares as $gare) {
+            $garesParCompagnie[(int)$gare->id_compagnie][] = $gare;
+        }
+
         // Affichage de la vue
-        $this->view('admin/configuration', ['liste' => $listes]);
+        $this->view('admin/configuration', ['liste' => $listes, 'garesParCompagnie' => $garesParCompagnie]);
     }
 
     // Vérifie que l'utilisateur ciblé appartient bien à la compagnie de l'Admin connecté
