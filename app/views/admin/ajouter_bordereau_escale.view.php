@@ -1,4 +1,4 @@
-<?php $this->view('admin/partials/headers') ?>
+<?php $this->view('admin/partials/header') ?>
 
 <body>
     <!--start wrapper-->
