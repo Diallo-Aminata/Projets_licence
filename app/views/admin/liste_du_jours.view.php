@@ -168,7 +168,10 @@
                                             <td data-label="Jour de voyage"><?= $item->jourVoyage ?></td>
                                             <td data-label="Date d'expiration"><?= $item->date_expiration ?></td>
                                             <td data-label="Action">
-                                                <div class="dropup ">
+                                                <!-- dropdown (pas dropup) : les premieres lignes d'une longue liste n'ont pas
+                                                     assez de place au-dessus pour un menu qui s'ouvre vers le haut, ce qui
+                                                     coupait les actions au-dela des 3 premieres (Details/Modifier/Reporter). -->
+                                                <div class="dropdown">
                                                     <a href="#" class="-toggle text-dark text-decoration-none fs-4" data-bs-toggle="dropdown" aria-expanded="false">
                                                         &#8943; <!-- Trois points horizontaux -->
                                                     </a>
