@@ -330,6 +330,12 @@
 
             $aujourdhui = date('Y-m-d');
 
+            // Prix de reference pour cette heure/destination : la vue l'affiche en aperçu
+            // (surtout utile pour "Heure non listée", où le catalogue n'a pas de prix tout
+            // prêt côté client) — purement informatif, le serveur recalcule toujours ce même
+            // prix au moment de l'enregistrement, jamais celui envoyé par le client.
+            $prixUnitaire = $this->getPrixReference($heureDepart, $destinationLocalite, '');
+
             $rowProg = $this->fetchOne(
                 "SELECT c.numero_car, c.matriculle, c.nbr_place, c.nbr_place_reserve
                  FROM programmation_voyage pv
@@ -352,7 +358,8 @@
                     'existe'           => true,
                     'numero_car'       => $rowProg['numero_car'],
                     'matriculle'       => $rowProg['matriculle'],
-                    'places_restantes' => max(0, (int)$rowProg['nbr_place'] - (int)$rowProg['nbr_place_reserve'])
+                    'places_restantes' => max(0, (int)$rowProg['nbr_place'] - (int)$rowProg['nbr_place_reserve']),
+                    'prix_unitaire'    => $prixUnitaire
                 ];
             }
 
@@ -360,8 +367,9 @@
             $cars = $programmationModel->getCarsDisponiblesGare($departLocalite, $idCompagnie);
 
             return [
-                'existe' => false,
-                'cars'   => array_map(fn($c) => [
+                'existe'        => false,
+                'prix_unitaire' => $prixUnitaire,
+                'cars'          => array_map(fn($c) => [
                     'id_car'           => (int)$c['id_car'],
                     'numero_car'       => $c['numero_car'],
                     'matriculle'       => $c['matriculle'],

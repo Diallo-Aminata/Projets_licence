@@ -309,10 +309,26 @@
             dateInput.value = dateInput.min;
         })();
 
+        // Prix resolu cote serveur pour une heure non listee (cf. rafraichirEtatCreneau) :
+        // aucun data-prix disponible sur un <option> catalogue pour une heure saisie
+        // librement, il faut donc le recuperer par AJAX. null = aucun tarif sur (destination
+        // sans heure programmee du tout, ou plusieurs tarifs differents selon l'heure).
+        let prixUnitaireHeureLibre = null;
+
         function calculerPrixTotal() {
-            const selectedOption = programmeSelect.options[programmeSelect.selectedIndex];
-            const prixUnitaire = parseFloat(selectedOption.dataset.prix || 0);
             const nbPassagers = parseInt(document.getElementById('nombrePassagers').value) || 0;
+            let prixUnitaire;
+            if (heureNonListee.checked) {
+                if (prixUnitaireHeureLibre === null) {
+                    document.getElementById('prix').value = '';
+                    document.getElementById('prixTotal').value = 'Tarif introuvable pour cette heure — choisissez une heure déjà listée';
+                    return;
+                }
+                prixUnitaire = prixUnitaireHeureLibre;
+            } else {
+                const selectedOption = programmeSelect.options[programmeSelect.selectedIndex];
+                prixUnitaire = parseFloat(selectedOption.dataset.prix || 0);
+            }
             const total = prixUnitaire * nbPassagers;
             document.getElementById('prix').value = prixUnitaire;
             document.getElementById('prixTotal').value = isNaN(total) ? '' : `${total.toLocaleString()} FCFA`;
@@ -471,6 +487,15 @@
                     const choixBox = document.getElementById('choixCarBox');
                     const select = document.getElementById('carChoisiSelect');
 
+                    // Heure non listée : pas de data-prix côté catalogue, le prix (ou son
+                    // absence, si tarifs différents selon l'heure pour cette destination)
+                    // vient donc de cette réponse AJAX plutôt que d'un <option>.
+                    if (heureNonListee.checked) {
+                        prixUnitaireHeureLibre = (response.prix_unitaire !== null && response.prix_unitaire !== undefined)
+                            ? parseFloat(response.prix_unitaire) : null;
+                        calculerPrixTotal();
+                    }
+
                     row.classList.remove('d-none');
 
                     if (response.erreur) {
@@ -524,6 +549,8 @@
             heureLibreInput.classList.toggle('d-none', !actif);
             heureLibreInput.disabled = !actif;
             escalesList.innerHTML = '';
+            prixUnitaireHeureLibre = null;
+            calculerPrixTotal();
             rafraichirEtatCreneau();
         });
         heureLibreInput.addEventListener('change', rafraichirEtatCreneau);
