@@ -156,10 +156,5 @@
     </tr>
   </table>
 
-  <footer>
-    Bordereau papier réservé aux escales sans réseau. Le chauffeur ou convoyeur le remet dès l'arrivée en zone couverte,
-    pour saisie dans le système (menu Caisse &gt; Bordereau d'escale).
-  </footer>
-
 </body>
 </html>
