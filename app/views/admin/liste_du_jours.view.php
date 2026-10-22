@@ -456,8 +456,15 @@
                 else if (d.embarquement === 'embarque') statutTexte = 'Embarqué';
                 $('#detailStatut').text(statutTexte);
 
-                let bagages = [];
-                try { bagages = JSON.parse(d.bagages || '[]'); } catch (err) { bagages = []; }
+                // jQuery convertit automatiquement un data-* qui ressemble à du JSON
+                // (commence par [ ou {) en tableau/objet au moment du .data() : d.bagages
+                // est donc déjà un tableau ici, jamais une chaîne à parser soi-même (un
+                // JSON.parse() dessus échouait silencieusement et retombait toujours sur
+                // "Aucun bagage").
+                let bagages = Array.isArray(d.bagages) ? d.bagages : [];
+                if (typeof d.bagages === 'string') {
+                    try { bagages = JSON.parse(d.bagages || '[]'); } catch (err) { bagages = []; }
+                }
                 if (bagages.length === 0) {
                     $('#detailBagages').html('<p class="text-muted mb-0">Aucun bagage.</p>');
                 } else {
