@@ -176,7 +176,23 @@
                                                         &#8943; <!-- Trois points horizontaux -->
                                                     </a>
                                                     <div class="dropdown-menu dropdown-menu-end">
-                                                        <a class="dropdown-item" href="#">Details</a>
+                                                        <a href="#" class="dropdown-item details-btn"
+                                                            data-numero="<?= htmlspecialchars($item->numeroBillets) ?>"
+                                                            data-client="<?= htmlspecialchars($item->Client) ?>"
+                                                            data-depart="<?= htmlspecialchars($item->departId) ?>"
+                                                            data-destination="<?= htmlspecialchars($item->destinationId) ?>"
+                                                            data-jour="<?= htmlspecialchars($item->jourVoyage) ?>"
+                                                            data-heure="<?= htmlspecialchars($item->Heur_departs) ?>"
+                                                            data-place="<?= htmlspecialchars($item->numeroPlace) ?>"
+                                                            data-passagers="<?= htmlspecialchars($item->nombrePassages) ?>"
+                                                            data-expiration="<?= htmlspecialchars($item->date_expiration) ?>"
+                                                            data-montant="<?= htmlspecialchars($item->montant_payer) ?>"
+                                                            data-statut="<?= htmlspecialchars($item->status_billets ?? '') ?>"
+                                                            data-embarquement="<?= htmlspecialchars($item->statut_embarquement ?? '') ?>"
+                                                            data-bagages='<?= htmlspecialchars(json_encode(array_map(fn($b) => ['description' => $b['description'], 'prix' => $b['prix']], $item->bagages)), ENT_QUOTES) ?>'
+                                                            data-total-bagages="<?= htmlspecialchars($item->totalBagages) ?>">
+                                                            Details
+                                                        </a>
                                                         <?php if (($_SESSION['droit'] ?? null) !== 'PDG'): ?>
                                                         <a class="dropdown-item" href="#">Modifier</a>
                                                         <a href="#" class="dropdown-item report-btn"
@@ -253,6 +269,39 @@
 
     </div>
     <!--end wrapper-->
+
+    <!-- Modal Details du billet -->
+    <div class="modal fade" id="modalDetailsBillet" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary">
+                    <h5 class="modal-title text-white">Détails du billet <span id="detailNumero"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <table class="table table-borderless mb-3">
+                        <tbody>
+                            <tr><th class="text-nowrap pe-3">Client</th><td id="detailClient"></td></tr>
+                            <tr><th class="text-nowrap pe-3">Trajet</th><td id="detailTrajet"></td></tr>
+                            <tr><th class="text-nowrap pe-3">Date de voyage</th><td id="detailJour"></td></tr>
+                            <tr><th class="text-nowrap pe-3">Heure de départ</th><td id="detailHeure"></td></tr>
+                            <tr><th class="text-nowrap pe-3">Place(s)</th><td id="detailPlace"></td></tr>
+                            <tr><th class="text-nowrap pe-3">Nombre de passagers</th><td id="detailPassagers"></td></tr>
+                            <tr><th class="text-nowrap pe-3">Date d'expiration</th><td id="detailExpiration"></td></tr>
+                            <tr><th class="text-nowrap pe-3">Montant payé</th><td id="detailMontant"></td></tr>
+                            <tr><th class="text-nowrap pe-3">Statut</th><td id="detailStatut"></td></tr>
+                        </tbody>
+                    </table>
+                    <h6 class="text-primary">Bagages</h6>
+                    <div id="detailBagages"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Button trigger modal -->
 
     <!-- Modal -->
@@ -384,6 +433,43 @@
                 e.preventDefault();
                 $('#annulerIdBillets').val($(this).data('idbillets'));
                 $('#modalAnnulerBillet').modal('show');
+            });
+        });
+        $(document).ready(function() {
+            $('.details-btn').click(function(e) {
+                e.preventDefault();
+                const d = $(this).data();
+
+                $('#detailNumero').text(d.numero ? 'N° ' + d.numero : '');
+                $('#detailClient').text(d.client || '-');
+                $('#detailTrajet').text((d.depart || '-') + ' → ' + (d.destination || '-'));
+                $('#detailJour').text(d.jour ? new Date(d.jour).toLocaleDateString('fr-FR') : '-');
+                $('#detailHeure').text(d.heure || '-');
+                $('#detailPlace').text(d.place || '-');
+                $('#detailPassagers').text(d.passagers || '-');
+                $('#detailExpiration').text(d.expiration ? new Date(d.expiration).toLocaleDateString('fr-FR') : '-');
+                $('#detailMontant').text(d.montant ? Number(d.montant).toLocaleString('fr-FR') + ' FCFA' : '-');
+
+                let statutTexte = 'Valide';
+                if (d.statut === 'annule') statutTexte = 'Annulé';
+                else if (d.statut === 'annulation_demandee') statutTexte = "Demande d'annulation en attente";
+                else if (d.embarquement === 'embarque') statutTexte = 'Embarqué';
+                $('#detailStatut').text(statutTexte);
+
+                let bagages = [];
+                try { bagages = JSON.parse(d.bagages || '[]'); } catch (err) { bagages = []; }
+                if (bagages.length === 0) {
+                    $('#detailBagages').html('<p class="text-muted mb-0">Aucun bagage.</p>');
+                } else {
+                    let html = '<ul class="list-unstyled mb-1">';
+                    bagages.forEach(function(b) {
+                        html += '<li>' + (b.description || 'Bagage') + ' — ' + Number(b.prix).toLocaleString('fr-FR') + ' FCFA</li>';
+                    });
+                    html += '</ul><p class="fw-bold mb-0">Total bagages : ' + Number(d.totalBagages || 0).toLocaleString('fr-FR') + ' FCFA</p>';
+                    $('#detailBagages').html(html);
+                }
+
+                $('#modalDetailsBillet').modal('show');
             });
         });
         $(document).ready(function() {

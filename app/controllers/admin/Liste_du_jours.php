@@ -28,6 +28,16 @@ class Liste_du_jours extends  Controller
     $model = new Liste_du_jour();
 
     $resultats = $model->listeBillets($idDepart, $numeroGare);
+
+    // Bagages non inclus dans listeBillets() (table séparée) : rattachés ici pour la fenêtre
+    // "Details" de chaque billet. Liste bornée (LIMIT 10 dans listeBillets()), donc sans
+    // impact de performance.
+    $bagageModel = new Bagage();
+    foreach ($resultats as $item) {
+      $item->bagages = $bagageModel->getBagagesPourBillet($item->idBillets);
+      $item->totalBagages = $bagageModel->getTotalBagages($item->idBillets);
+    }
+
     $liste_horaires = $model->FetchSelectWheres(
       '*',
       'horaire',
