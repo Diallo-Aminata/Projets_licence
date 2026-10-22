@@ -187,6 +187,44 @@
                                                 </div>
                                             </div>
 
+                                            <!-- Bagages payants : optionnel. Pas de formule automatique, l'agent pese le
+                                                 bagage et saisit le prix a la main (cf. app/models/Bagage.php). Un passager
+                                                 peut avoir plusieurs bagages : "add to row" comme pour "Ajout de camions". -->
+                                            <div class="mb-3 row">
+                                                <label class="col-lg-4 col-form-label">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" id="afficherBagages">
+                                                        <label class="form-check-label" for="afficherBagages">Bagages payants</label>
+                                                    </div>
+                                                </label>
+                                                <div class="col-lg-8 d-none" id="bagagesBox">
+                                                    <div id="bagagesRows">
+                                                        <div class="row align-items-end mb-2 bagage-row">
+                                                            <div class="col-md-5">
+                                                                <label class="form-label">Description</label>
+                                                                <input type="text" class="form-control" placeholder="Ex: 1 valise" name="bagage_description[]" autocomplete="off">
+                                                            </div>
+                                                            <div class="col-md-3">
+                                                                <label class="form-label">Poids (kg)</label>
+                                                                <input type="number" step="0.1" min="0" class="form-control" placeholder="Poids" name="bagage_poids[]" autocomplete="off">
+                                                            </div>
+                                                            <div class="col-md-3">
+                                                                <label class="form-label">Prix (FCFA)</label>
+                                                                <input type="number" min="0" class="form-control" placeholder="Prix" name="bagage_prix[]" autocomplete="off">
+                                                            </div>
+                                                            <div class="col-md-1">
+                                                                <button type="button" class="btn btn-outline-danger remove-bagage-btn d-none w-100" title="Retirer cette ligne">
+                                                                    <i class="bx bx-trash"></i>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <button type="button" id="addBagageRow" class="btn btn-sm btn-outline-primary">
+                                                        <i class="bx bx-plus"></i> Ajouter un bagage
+                                                    </button>
+                                                </div>
+                                            </div>
+
 
                                             <div class="mb-3 row">
                                                 <label class="col-lg-4 col-form-label" for="validationCustom06">
@@ -510,6 +548,42 @@
         destinationSelect.addEventListener('change', updateProgrammeOptions);
         dateInput.addEventListener('change', updateProgrammeOptions);
         updateProgrammeOptions();
+
+        // Bagages payants (optionnel) : "add to row", mêmes JS que "Ajout de camions"
+        // (camions.view.php) — une ligne par bagage (description/poids/prix).
+        document.addEventListener('DOMContentLoaded', function() {
+            const afficherBagages = document.getElementById('afficherBagages');
+            const bagagesBox = document.getElementById('bagagesBox');
+            const bagagesRows = document.getElementById('bagagesRows');
+            const addBagageBtn = document.getElementById('addBagageRow');
+
+            afficherBagages.addEventListener('change', function() {
+                bagagesBox.classList.toggle('d-none', !this.checked);
+            });
+
+            function toggleRemoveBagageButtons() {
+                const rows = bagagesRows.querySelectorAll('.bagage-row');
+                rows.forEach(function(row) {
+                    row.querySelector('.remove-bagage-btn').classList.toggle('d-none', rows.length <= 1);
+                });
+            }
+
+            addBagageBtn.addEventListener('click', function() {
+                const firstRow = bagagesRows.querySelector('.bagage-row');
+                const newRow = firstRow.cloneNode(true);
+                newRow.querySelectorAll('input').forEach(function(input) { input.value = ''; });
+                bagagesRows.appendChild(newRow);
+                toggleRemoveBagageButtons();
+            });
+
+            bagagesRows.addEventListener('click', function(e) {
+                const btn = e.target.closest('.remove-bagage-btn');
+                if (btn) {
+                    btn.closest('.bagage-row').remove();
+                    toggleRemoveBagageButtons();
+                }
+            });
+        });
 
         document.addEventListener('DOMContentLoaded', () => {
             const escalesList = document.getElementById('escalesList');

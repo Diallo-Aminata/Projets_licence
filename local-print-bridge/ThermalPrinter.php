@@ -46,10 +46,23 @@ class ThermalPrinter
         $r .= self::champ("Place(s)", $billet['places'] ?? '-');
         $r .= $sep;
 
+        // Bagages payants (optionnel, cf. app/models/Bagage.php) : une ligne par bagage,
+        // comme sur le PDF cable/USB.
+        if (!empty($billet['bagages'])) {
+            foreach ($billet['bagages'] as $bagage) {
+                $libelle = !empty($bagage['description']) ? "Bagage (" . $bagage['description'] . ")" : "Bagage";
+                $r .= self::champ($libelle, ($bagage['prix'] ?? '-') . " FCFA");
+            }
+            $r .= $sep;
+        }
+
         // Montant en gras/agrandi
         $r .= $ESC . "!" . "\x10";
         $r .= "MONTANT PAYE   " . self::clean($billet['montant'] ?? '-') . " FCFA\n";
         $r .= $ESC . "!" . "\x00";
+        if (!empty($billet['totalBagages'])) {
+            $r .= self::champ("Bagages", $billet['totalBagages'] . " FCFA");
+        }
         $r .= $sep;
 
         // Mentions légales

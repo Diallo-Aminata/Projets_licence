@@ -154,6 +154,7 @@ class Liste_du_jours extends  Controller
 
     $billet = $billets->getBilletById($idBillets); // ✅ récupère un billet spécifique
     $compagnie = $colisModel->infoCompagnie($_SESSION['id_compagnie'] ?? 0);
+    $bagages = (new Bagage())->getBagagesPourBillet($idBillets);
 
     if (!$billet || !$compagnie) {
       $colisModel->set_flash('Billet ou compagnie introuvable.', 'danger');
@@ -196,6 +197,8 @@ class Liste_du_jours extends  Controller
 
     $billet = $billets->getBilletById($idBillets);
     $compagnie = $colisModel->infoCompagnie($_SESSION['id_compagnie'] ?? 0);
+    $bagageModel = new Bagage();
+    $bagages = $billet ? $bagageModel->getBagagesPourBillet($idBillets) : [];
 
     ob_clean();
     header('Content-Type: application/json; charset=utf-8');
@@ -234,6 +237,15 @@ class Liste_du_jours extends  Controller
       'places' => $billet->numeroPlace ?? '-',
       'montant' => !empty($montantNet) ? number_format((float)$montantNet, 0, ',', ' ') : '-',
       'emisPar' => $billet->utilisateurs ?? '-',
+      // Bagages payants (optionnel, cf. app/models/Bagage.php) : rendus par le pont
+      // d'impression local (local-print-bridge/ThermalPrinter.php::buildBilletContent()).
+      'bagages' => array_map(fn($b) => [
+        'description' => $b['description'] ?? '-',
+        'prix' => number_format((float)$b['prix'], 0, ',', ' '),
+      ], $bagages),
+      'totalBagages' => array_sum(array_column($bagages, 'prix')) > 0
+        ? number_format((float)array_sum(array_column($bagages, 'prix')), 0, ',', ' ')
+        : null,
     ]);
 
     // json_encode() renvoie false (donc une réponse vide, invalide en JSON) en cas de

@@ -195,6 +195,12 @@
                                                             Imprimer (imprimante WiFi)
                                                         </a>
 
+                                                        <?php if (($_SESSION['droit'] ?? null) !== 'PDG'): ?>
+                                                        <a class="dropdown-item" href="<?= BASE_URL ?>/admin/Bagages/ajouter/<?= $item->idBillets ?>">
+                                                            Ajouter des bagages
+                                                        </a>
+                                                        <?php endif; ?>
+
                                                         <?php
                                                         // Un simple Utilisateur ne peut pas annuler. Un chef d'escale ne peut que
                                                         // demander l'annulation (validée ensuite par un Admin) ; l'Admin annule

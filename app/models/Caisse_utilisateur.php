@@ -230,6 +230,35 @@ class Caisse_utilisateur extends Model
     }
 
     /**
+     * Crédite le montant des bagages d'un billet. Pas de colonne dédiée total_bagages pour
+     * l'instant (cf. ajout_bagages.sql) : ajouté à total_billets, comme le billet lui-même,
+     * mais avec une entrée de journal distincte ('bagage') pour garder une trace précise par
+     * opération. N'incrémente jamais nb_billets : ce compteur reste le nombre de BILLETS
+     * vendus, pas le nombre d'opérations de caisse.
+     *
+     * @param \PDO   $pdo       Connexion PDO de la transaction en cours
+     * @param int    $idUser    Agent qui encaisse (celui connecté, pas forcément le vendeur du billet)
+     * @param float  $montant   Montant total des bagages
+     * @param string $reference Numéro du billet concerné
+     * @param int    $idBillet  ID du billet concerné
+     * @return int|false        id_caisse_user ou false si pas de caisse ouverte
+     */
+    public function crediterBagage(\PDO $pdo, int $idUser, float $montant, string $reference, int $idBillet)
+    {
+        $caisse = $this->_getCaisseOuverteByPdo($pdo, $idUser);
+        if (!$caisse) {
+            return false;
+        }
+
+        $pdo->prepare("UPDATE caisse_utilisateur SET total_billets = total_billets + :montant WHERE id_caisse_user = :id")
+            ->execute([':montant' => $montant, ':id' => $caisse->id_caisse_user]);
+
+        $this->insererJournal($pdo, $caisse->id_caisse_user, $idUser, 'bagage', $reference, $montant, "Bagages billet $reference");
+
+        return $caisse->id_caisse_user;
+    }
+
+    /**
      * Crédite la caisse de l'utilisateur lors d'un enregistrement de colis.
      * Appelé depuis Colis_prise_en_charge::saveColis() dans la même transaction PDO.
      */

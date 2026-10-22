@@ -920,6 +920,50 @@
                     return false;
                 }
 
+                // === Bagages optionnels ajoutés au moment de la vente (cf. app/models/Bagage.php) ===
+                // Pas de formule automatique : le prix est saisi à la main par l'agent après
+                // pesée réelle. Une seule ligne de caisse pour le total (pas une par bagage).
+                $bagagePrixListe = $_POST['bagage_prix'] ?? [];
+                if (is_array($bagagePrixListe) && !empty($bagagePrixListe)) {
+                    $bagageDescriptions = $_POST['bagage_description'] ?? [];
+                    $bagagePoidsListe   = $_POST['bagage_poids'] ?? [];
+                    $bagageModel        = new Bagage();
+                    $totalBagages       = 0.0;
+
+                    foreach ($bagagePrixListe as $i => $prixBagage) {
+                        if ($prixBagage === '' || $prixBagage === null) {
+                            continue;
+                        }
+                        $prixBagage = (float)$prixBagage;
+                        if ($prixBagage < 0) {
+                            continue;
+                        }
+                        $bagageModel->saveBagageAvecPdo(
+                            $pdo,
+                            $idBilletCree,
+                            $bagageDescriptions[$i] ?? null,
+                            $bagagePoidsListe[$i] ?? null,
+                            $prixBagage
+                        );
+                        $totalBagages += $prixBagage;
+                    }
+
+                    if ($totalBagages > 0) {
+                        $creditBagageOk = $caisseModel->crediterBagage(
+                            $pdo,
+                            (int)$_SESSION['id_utilisateur'],
+                            $totalBagages,
+                            $numeroBillets,
+                            $idBilletCree
+                        );
+                        if ($creditBagageOk === false) {
+                            $pdo->rollBack();
+                            $this->set_flash("Opération bloquée : Aucune caisse ouverte pour votre compte. Veuillez ouvrir votre caisse d'abord.", "danger");
+                            return false;
+                        }
+                    }
+                }
+
                 // Maintenir la caisse d'agence pour compatibilité (bilan global)
                 $stmtAgence = $pdo->prepare("
                     SELECT c.id_caisse FROM caisse c

@@ -188,6 +188,18 @@
 
   <hr>
 
+  <?php if (!empty($bagages)): ?>
+  <table class="infos">
+    <?php foreach ($bagages as $b): ?>
+    <tr>
+      <td class="label">Bagage<?= !empty($b['description']) ? ' (' . htmlspecialchars($b['description']) . ')' : '' ?></td>
+      <td class="value"><?= number_format((float)$b['prix'], 0, ',', ' ') ?> FCFA</td>
+    </tr>
+    <?php endforeach; ?>
+  </table>
+  <hr>
+  <?php endif; ?>
+
   <div class="total-box">
     <table>
       <tr>
@@ -201,6 +213,12 @@
           ?>
         </td>
       </tr>
+      <?php if (!empty($bagages)): ?>
+      <tr>
+        <td class="label">Bagages</td>
+        <td class="value"><?= number_format((float)array_sum(array_column($bagages, 'prix')), 0, ',', ' ') ?> FCFA</td>
+      </tr>
+      <?php endif; ?>
     </table>
   </div>
 
