@@ -28,11 +28,11 @@
                     <input type="date" name="date" class="form-control form-control-sm rounded-pill px-3" value="<?= htmlspecialchars($date ?? '') ?>" max="<?= date('Y-m-d') ?>">
                     <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3">Filtrer</button>
                 </form>
-                <a href="<?= BASE_URL ?>/admin/Bordereau_escales/ajouter" class="btn btn-success btn-sm">
-                    <i class="bx bx-plus"></i> Nouveau bordereau
+                <a href="<?= BASE_URL ?>/admin/Bordereau_escales/ajouter" class="btn btn-success d-flex align-items-center gap-2 shadow-sm">
+                    <i class="bx bx-plus-circle fs-5"></i> Nouveau bordereau
                 </a>
-                <a href="<?= BASE_URL ?>/admin/Bordereau_escales/telecharger_modele" class="btn btn-outline-primary btn-sm">
-                    <i class="bx bx-download"></i> Télécharger le modèle vierge
+                <a href="<?= BASE_URL ?>/admin/Bordereau_escales/telecharger_modele" class="btn btn-outline-primary d-flex align-items-center gap-2 shadow-sm">
+                    <i class="bx bx-download fs-5"></i> Télécharger le modèle vierge
                 </a>
             </div>
         </div>
