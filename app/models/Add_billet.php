@@ -192,6 +192,33 @@
                 ]
             );
 
+            // Heure saisie librement (cf. "Heure non listée" côté formulaire, pour vendre un
+            // billet même quand aucune heure programmée ne convient) : on retombe sur le prix
+            // de cette même destination à une autre heure déjà programmée, MAIS seulement si
+            // toutes les heures existantes vers cette destination partagent exactement le même
+            // prix (certaines destinations ont un tarif réduit à une heure précise, ex: un
+            // départ matinal moins cher que les autres) — dans le doute, ne jamais deviner un
+            // prix : mieux vaut refuser la vente que sous-facturer un client.
+            if (!$row) {
+                $rowsDestination = $this->fetchAll(
+                    "SELECT p.idProgrammer, p.prix
+                     FROM programmer p
+                     LEFT JOIN agence a2 ON p.idDestination = a2.idAgence
+                     WHERE p.idDepart = :idAgenceDepart
+                       AND a2.localite = :destLocalite
+                       AND p.id_compagnie = :idCompagnie",
+                    [
+                        ':idAgenceDepart' => $idAgenceDepart,
+                        ':destLocalite'   => $destinationLocalite,
+                        ':idCompagnie'    => $idCompagnie
+                    ]
+                );
+                $prixDistincts = array_unique(array_map(fn($r) => (float)$r['prix'], $rowsDestination));
+                if (count($prixDistincts) === 1) {
+                    $row = $rowsDestination[0];
+                }
+            }
+
             if (!$row) {
                 return null;
             }
@@ -259,6 +286,26 @@
                 ]
             );
 
+            // Heure saisie librement (cf. getPrixReference ci-dessus, même raisonnement) :
+            // l'idAgence d'une destination ne dépend pas de l'heure, seulement du couple
+            // gare de départ/destination.
+            if (!$row) {
+                $row = $this->fetchOne(
+                    "SELECT p.idDestination
+                     FROM programmer p
+                     LEFT JOIN agence a2 ON p.idDestination = a2.idAgence
+                     WHERE p.idDepart = :idAgenceDepart
+                       AND a2.localite = :destLocalite
+                       AND p.id_compagnie = :idCompagnie
+                     LIMIT 1",
+                    [
+                        ':idAgenceDepart' => $idAgenceDepart,
+                        ':destLocalite'   => $destinationLocalite,
+                        ':idCompagnie'    => $idCompagnie
+                    ]
+                );
+            }
+
             return $row ? (int)$row['idDestination'] : null;
         }
 
@@ -266,24 +313,19 @@
         // un car est deja programme (bandeau informatif, places restantes), soit aucun ne
         // l'est encore (liste des cars physiquement presents a la gare pour en choisir un).
         // Utilise par Add_billets::ajaxEtatCreneau() (appel AJAX depuis le formulaire de vente).
-        public function getEtatCreneauPourAjax($idProgrammer)
+        //
+        // Fonctionne directement a partir de l'heure et de la destination (jamais via le
+        // catalogue "programmer") : couvre aussi bien une heure choisie dans le select que
+        // "Heure non listee" saisie librement (le catalogue n'a alors aucune ligne a offrir).
+        public function getEtatCreneauPourAjax($heureDepart, $destinationLocalite)
         {
             [$idAgenceDepart, $departLocalite, ] = $this->resolveDepart();
             $idCompagnie = $_SESSION['id_compagnie'] ?? null;
             if (!$idAgenceDepart || !$idCompagnie) {
                 return ['erreur' => "Gare de départ introuvable."];
             }
-
-            $programme = $this->fetchOne(
-                "SELECT p.idProgrammer, p.heureDepart, a2.localite AS destinationLocalite
-                 FROM programmer p
-                 LEFT JOIN agence a2 ON p.idDestination = a2.idAgence
-                 WHERE p.idProgrammer = :id AND p.idDepart = :idDepart AND p.id_compagnie = :ic
-                 LIMIT 1",
-                [':id' => $idProgrammer, ':idDepart' => $idAgenceDepart, ':ic' => $idCompagnie]
-            );
-            if (!$programme) {
-                return ['erreur' => "Trajet introuvable pour cette gare."];
+            if (!$heureDepart || !$destinationLocalite) {
+                return ['erreur' => "Heure ou destination manquante."];
             }
 
             $aujourdhui = date('Y-m-d');
@@ -296,9 +338,9 @@
                    AND pv.localite_user = :l AND pv.id_agence = :a AND pv.id_compagnie = :c
                  LIMIT 1",
                 [
-                    ':h' => $programme['heureDepart'],
+                    ':h' => $heureDepart,
                     ':d' => $aujourdhui,
-                    ':t' => $programme['destinationLocalite'],
+                    ':t' => $destinationLocalite,
                     ':l' => $departLocalite,
                     ':a' => $idAgenceDepart,
                     ':c' => $idCompagnie

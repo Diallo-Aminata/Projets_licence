@@ -50,14 +50,15 @@ class Add_billets extends Controller
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $idProgrammer = (int)($_POST['idProgrammer'] ?? 0);
-        if (!$idProgrammer) {
-            echo json_encode(['erreur' => "Trajet manquant."]);
+        $heureDepart = trim($_POST['heureDepart'] ?? '');
+        $destinationLocalite = trim($_POST['destinationLocalite'] ?? '');
+        if (!$heureDepart || !$destinationLocalite) {
+            echo json_encode(['erreur' => "Heure ou destination manquante."]);
             exit;
         }
 
         $model = new Add_billet();
-        echo json_encode($model->getEtatCreneauPourAjax($idProgrammer));
+        echo json_encode($model->getEtatCreneauPourAjax($heureDepart, $destinationLocalite));
         exit;
     }
 }

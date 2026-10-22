@@ -202,16 +202,20 @@ $fromAndWhere = "liaison_car_trajet
             return false;
         }
 
-        // L'heure choisie doit correspondre à un trajet réellement programmé (table "programmer")
-        // pour CETTE gare précise et CETTE gare de destination précise : sinon on pourrait
-        // enregistrer un voyage à une heure qui n'existe pas pour ce trajet, ou mélanger deux
-        // gares de la même ville.
+        // Le couple gare de depart/gare de destination doit correspondre a un trajet
+        // reellement programme (table "programmer") pour CETTE gare precise et CETTE gare de
+        // destination precise : sinon on pourrait melanger deux gares de la meme ville, ou
+        // programmer une destination que la compagnie ne dessert pas du tout. L'heure n'est
+        // en revanche jamais exigee exactement : une "heure non listee" saisie a la main
+        // (cf. Add_billet::saveBillets(), vente d'aujourd'hui sans programmation prealable
+        // quand aucune heure programmee ne convient) doit pouvoir reutiliser un trajet deja
+        // existant a une autre heure, le prix etant le meme quelle que soit l'heure.
         $trajetValide = $this->fetchOne(
             "SELECT p.idProgrammer
              FROM programmer p
-             WHERE p.idDepart = :id_agence AND p.idDestination = :id_agence_destination AND p.heureDepart = :heure AND p.id_compagnie = :id_compagnie
+             WHERE p.idDepart = :id_agence AND p.idDestination = :id_agence_destination AND p.id_compagnie = :id_compagnie
              LIMIT 1",
-            [':id_agence' => $id_agence, ':id_agence_destination' => $id_agence_destination, ':heure' => $id_horaire, ':id_compagnie' => $id_compagnie]
+            [':id_agence' => $id_agence, ':id_agence_destination' => $id_agence_destination, ':id_compagnie' => $id_compagnie]
         );
 
         if (!$trajetValide) {

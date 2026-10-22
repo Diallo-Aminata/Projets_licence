@@ -131,6 +131,11 @@
                                                     <select name="programme" class="form-select" id="programmeSelect">
                                                         <option value="">Sélectionnez une heure</option>
                                                     </select>
+                                                    <div class="form-check mt-2">
+                                                        <input class="form-check-input" type="checkbox" id="heureNonListee">
+                                                        <label class="form-check-label" for="heureNonListee">Heure non listée (la saisir manuellement)</label>
+                                                    </div>
+                                                    <input type="time" name="programme" class="form-control mt-2 d-none" id="heureLibreInput" disabled>
                                                 </div>
                                             </div>
 
@@ -333,6 +338,8 @@
         let destinations = <?= json_encode($destinations) ?>;
         const destinationSelect = document.getElementById('destinationSelect');
         const programmeSelect = document.getElementById('programmeSelect');
+        const heureNonListee = document.getElementById('heureNonListee');
+        const heureLibreInput = document.getElementById('heureLibreInput');
         const escalesList = document.getElementById('escalesList');
         const prixManuelInput = document.getElementById('prixManuel');
         const prixManuelBox = document.getElementById('prixManuelBox');
@@ -437,14 +444,18 @@
             resetEtatCreneau();
 
             const isToday = dateEqToday(dateInput.value);
-            const selectedOption = programmeSelect.options[programmeSelect.selectedIndex];
-            const idProgrammer = selectedOption ? selectedOption.dataset.idProgrammer : null;
+            // Heure non cataloguée (case "Heure non listée" cochée) ou heure choisie dans le
+            // select des heures programmées : dans les deux cas, on verifie le creneau par
+            // heure + destination, jamais par idProgrammer (qui n'existe pas pour une heure
+            // libre, saisie a la main quand aucune heure programmee ne convient).
+            const heureDepart = heureNonListee.checked ? heureLibreInput.value : programmeSelect.value;
+            const destinationLocalite = document.getElementById('hiddenDestinationId').value;
 
             // Seule la vente d'AUJOURD'HUI dépend d'un car programmé : demain et les jours
             // suivants passent par un mécanisme de quota (places minimales), sans car assigné.
-            if (!isToday || !idProgrammer) return;
+            if (!isToday || !heureDepart || !destinationLocalite) return;
 
-            const data = { idProgrammer: idProgrammer };
+            const data = { heureDepart: heureDepart, destinationLocalite: destinationLocalite };
             <?php if (($_SESSION['droit'] ?? null) === 'Admin'): ?>
             data.idDepart = document.getElementById('departSelect').value;
             <?php endif; ?>
@@ -501,6 +512,21 @@
         // updateProgrammeOptions()/rebuildDestinationOptions()) : il suffit de réagir au choix
         // effectif d'une heure, qui survient forcément après que ces resets aient eu lieu.
         programmeSelect.addEventListener('change', rafraichirEtatCreneau);
+
+        // "Heure non listée" : permet de saisir une heure qui n'existe dans aucun programme
+        // (ex: toutes les heures programmées de la journée sont déjà passées). Un seul des
+        // deux champs porte name="programme" a la fois (l'autre est disabled, donc exclu du
+        // POST) : jamais les deux en meme temps.
+        heureNonListee.addEventListener('change', function() {
+            const actif = this.checked;
+            programmeSelect.classList.toggle('d-none', actif);
+            programmeSelect.disabled = actif;
+            heureLibreInput.classList.toggle('d-none', !actif);
+            heureLibreInput.disabled = !actif;
+            escalesList.innerHTML = '';
+            rafraichirEtatCreneau();
+        });
+        heureLibreInput.addEventListener('change', rafraichirEtatCreneau);
 
         destinationSelect.addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
