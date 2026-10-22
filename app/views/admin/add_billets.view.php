@@ -134,6 +134,23 @@
                                                 </div>
                                             </div>
 
+                                            <!-- Visible uniquement pour un voyage d'aujourd'hui : soit un car est deja
+                                                 programme sur ce creneau (bandeau informatif), soit aucun ne l'est
+                                                 encore et l'agent en choisit un parmi ceux disponibles a sa gare
+                                                 (la programmation est alors creee a la volee lors de l'enregistrement). -->
+                                            <div class="mb-3 row d-none" id="etatCreneauRow">
+                                                <label class="col-lg-4 col-form-label">Car pour ce voyage</label>
+                                                <div class="col-lg-8">
+                                                    <div id="bandeauCarProgramme" class="alert d-none" role="alert"></div>
+                                                    <div id="choixCarBox" class="d-none">
+                                                        <select class="form-select" id="carChoisiSelect" name="idCarChoisi">
+                                                            <option value="">Choisissez un car disponible</option>
+                                                        </select>
+                                                        <div class="invalid-feedback">Veuillez choisir un car pour ce voyage.</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
                                             <div class="mb-3 row">
                                                 <label class="col-lg-4 col-form-label" for="escalesList">Escales</label>
                                                 <div class="col-lg-8" id="escalesList" style="margin-top:8px"></div>
@@ -307,6 +324,7 @@
             document.getElementById('hiddenDestinationId').value = '';
             programmeSelect.innerHTML = '<option value="">Sélectionnez une heure</option>';
             escalesList.innerHTML = '';
+            resetEtatCreneau();
         }
 
         <?php if (($_SESSION['droit'] ?? null) === 'Admin'): ?>
@@ -347,13 +365,99 @@
                 programmes
                 .filter(p => !isToday || !hourIsPast(p.heureDepart))
                 .map(p =>
-                    `<option value="${p.heureDepart}" data-prix="${p.prix}" data-escales='${JSON.stringify(p.escales)}'>${p.heureDepart}</option>`
+                    `<option value="${p.heureDepart}" data-prix="${p.prix}" data-id-programmer="${p.idProgrammer}" data-escales='${JSON.stringify(p.escales)}'>${p.heureDepart}</option>`
                 ).join('');
             if (programmeSelect.options.length === 1 && isToday) {
                 programmeSelect.innerHTML += '<option disabled>(Plus aucune heure pour aujourd\'hui)</option>';
             }
             escalesList.innerHTML = '';
+            resetEtatCreneau();
         }
+
+        // Visible uniquement pour un voyage d'aujourd'hui (cf. rafraichirEtatCreneau) : soit un
+        // bandeau informatif (car déjà programmé), soit un select de car à choisir (programmation
+        // créée à la volée lors de l'enregistrement du billet). Masqué/réinitialisé sinon.
+        function resetEtatCreneau() {
+            const row = document.getElementById('etatCreneauRow');
+            const bandeau = document.getElementById('bandeauCarProgramme');
+            const choixBox = document.getElementById('choixCarBox');
+            const select = document.getElementById('carChoisiSelect');
+            row.classList.add('d-none');
+            bandeau.classList.add('d-none');
+            bandeau.textContent = '';
+            choixBox.classList.add('d-none');
+            select.innerHTML = '<option value="">Choisissez un car disponible</option>';
+            select.required = false;
+        }
+
+        function rafraichirEtatCreneau() {
+            resetEtatCreneau();
+
+            const isToday = dateEqToday(dateInput.value);
+            const selectedOption = programmeSelect.options[programmeSelect.selectedIndex];
+            const idProgrammer = selectedOption ? selectedOption.dataset.idProgrammer : null;
+
+            // Seule la vente d'AUJOURD'HUI dépend d'un car programmé : demain et les jours
+            // suivants passent par un mécanisme de quota (places minimales), sans car assigné.
+            if (!isToday || !idProgrammer) return;
+
+            const data = { idProgrammer: idProgrammer };
+            <?php if (($_SESSION['droit'] ?? null) === 'Admin'): ?>
+            data.idDepart = document.getElementById('departSelect').value;
+            <?php endif; ?>
+
+            $.ajax({
+                url: '<?= BASE_URL ?>/admin/Add_billets/ajaxEtatCreneau',
+                type: 'POST',
+                data: data,
+                dataType: 'json',
+                success: function(response) {
+                    const row = document.getElementById('etatCreneauRow');
+                    const bandeau = document.getElementById('bandeauCarProgramme');
+                    const choixBox = document.getElementById('choixCarBox');
+                    const select = document.getElementById('carChoisiSelect');
+
+                    row.classList.remove('d-none');
+
+                    if (response.erreur) {
+                        bandeau.classList.remove('d-none');
+                        bandeau.className = 'alert alert-danger';
+                        bandeau.textContent = response.erreur;
+                        return;
+                    }
+
+                    if (response.existe) {
+                        bandeau.classList.remove('d-none');
+                        bandeau.className = 'alert alert-info';
+                        bandeau.textContent = `Car n°${response.numero_car} (${response.matriculle}) déjà programmé — ${response.places_restantes} place(s) restante(s).`;
+                    } else if (response.cars && response.cars.length > 0) {
+                        choixBox.classList.remove('d-none');
+                        select.required = true;
+                        select.innerHTML = '<option value="">Choisissez un car disponible</option>' +
+                            response.cars.map(c =>
+                                `<option value="${c.id_car}">Car n°${c.numero_car} (${c.matriculle}) — ${c.places_restantes} places</option>`
+                            ).join('');
+                    } else {
+                        bandeau.classList.remove('d-none');
+                        bandeau.className = 'alert alert-warning';
+                        bandeau.textContent = "Aucun car disponible à cette gare pour l'instant.";
+                    }
+                },
+                error: function() {
+                    const row = document.getElementById('etatCreneauRow');
+                    const bandeau = document.getElementById('bandeauCarProgramme');
+                    row.classList.remove('d-none');
+                    bandeau.classList.remove('d-none');
+                    bandeau.className = 'alert alert-danger';
+                    bandeau.textContent = "Erreur lors de la vérification du créneau.";
+                }
+            });
+        }
+
+        // dateInput/destinationSelect invalident déjà l'état (resetEtatCreneau appelé depuis
+        // updateProgrammeOptions()/rebuildDestinationOptions()) : il suffit de réagir au choix
+        // effectif d'une heure, qui survient forcément après que ces resets aient eu lieu.
+        programmeSelect.addEventListener('change', rafraichirEtatCreneau);
 
         destinationSelect.addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];

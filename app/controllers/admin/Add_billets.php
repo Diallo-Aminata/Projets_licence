@@ -42,4 +42,22 @@ class Add_billets extends Controller
     
         $this->view('admin/add_billets', $data);
     }
+
+    // Etat du creneau d'aujourd'hui (car deja programme + places restantes, ou liste des
+    // cars disponibles a la gare pour en choisir un a la volee) : cf. Add_billet::getEtatCreneauPourAjax().
+    // Lecture seule : pas de csrf_verify(), meme choix que Locations_cars::ajaxCarsDisponibles().
+    public function ajaxEtatCreneau()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $idProgrammer = (int)($_POST['idProgrammer'] ?? 0);
+        if (!$idProgrammer) {
+            echo json_encode(['erreur' => "Trajet manquant."]);
+            exit;
+        }
+
+        $model = new Add_billet();
+        echo json_encode($model->getEtatCreneauPourAjax($idProgrammer));
+        exit;
+    }
 }

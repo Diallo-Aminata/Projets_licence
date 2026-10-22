@@ -236,6 +236,98 @@
             return 'SMT' . uniqid();
         }
 
+        // Retrouve l'idAgence precis de la destination finale (jamais l'escale) a partir de
+        // son nom de localite : insertProgrammation() exige un id, jamais un nom de ville.
+        // Jamais fait confiance a un id poste par le client : toujours redecouvert via le
+        // trajet programme (programmer), comme getPrixReference() le fait deja pour le prix.
+        private function resolveIdAgenceDestination($idAgenceDepart, $heureDepart, $destinationLocalite, $idCompagnie)
+        {
+            $row = $this->fetchOne(
+                "SELECT p.idDestination
+                 FROM programmer p
+                 LEFT JOIN agence a2 ON p.idDestination = a2.idAgence
+                 WHERE p.idDepart = :idAgenceDepart
+                   AND a2.localite = :destLocalite
+                   AND p.heureDepart = :heure
+                   AND p.id_compagnie = :idCompagnie
+                 LIMIT 1",
+                [
+                    ':idAgenceDepart' => $idAgenceDepart,
+                    ':destLocalite'   => $destinationLocalite,
+                    ':heure'          => $heureDepart,
+                    ':idCompagnie'    => $idCompagnie
+                ]
+            );
+
+            return $row ? (int)$row['idDestination'] : null;
+        }
+
+        // Etat d'un creneau d'aujourd'hui pour la vente sans programmation prealable : soit
+        // un car est deja programme (bandeau informatif, places restantes), soit aucun ne
+        // l'est encore (liste des cars physiquement presents a la gare pour en choisir un).
+        // Utilise par Add_billets::ajaxEtatCreneau() (appel AJAX depuis le formulaire de vente).
+        public function getEtatCreneauPourAjax($idProgrammer)
+        {
+            [$idAgenceDepart, $departLocalite, ] = $this->resolveDepart();
+            $idCompagnie = $_SESSION['id_compagnie'] ?? null;
+            if (!$idAgenceDepart || !$idCompagnie) {
+                return ['erreur' => "Gare de départ introuvable."];
+            }
+
+            $programme = $this->fetchOne(
+                "SELECT p.idProgrammer, p.heureDepart, a2.localite AS destinationLocalite
+                 FROM programmer p
+                 LEFT JOIN agence a2 ON p.idDestination = a2.idAgence
+                 WHERE p.idProgrammer = :id AND p.idDepart = :idDepart AND p.id_compagnie = :ic
+                 LIMIT 1",
+                [':id' => $idProgrammer, ':idDepart' => $idAgenceDepart, ':ic' => $idCompagnie]
+            );
+            if (!$programme) {
+                return ['erreur' => "Trajet introuvable pour cette gare."];
+            }
+
+            $aujourdhui = date('Y-m-d');
+
+            $rowProg = $this->fetchOne(
+                "SELECT c.numero_car, c.matriculle, c.nbr_place, c.nbr_place_reserve
+                 FROM programmation_voyage pv
+                 INNER JOIN car c ON c.id_car = pv.id_car_programmer
+                 WHERE pv.id_horaire = :h AND pv.date_enregistre = :d AND pv.id_trajet = :t
+                   AND pv.localite_user = :l AND pv.id_agence = :a AND pv.id_compagnie = :c
+                 LIMIT 1",
+                [
+                    ':h' => $programme['heureDepart'],
+                    ':d' => $aujourdhui,
+                    ':t' => $programme['destinationLocalite'],
+                    ':l' => $departLocalite,
+                    ':a' => $idAgenceDepart,
+                    ':c' => $idCompagnie
+                ]
+            );
+
+            if ($rowProg) {
+                return [
+                    'existe'           => true,
+                    'numero_car'       => $rowProg['numero_car'],
+                    'matriculle'       => $rowProg['matriculle'],
+                    'places_restantes' => max(0, (int)$rowProg['nbr_place'] - (int)$rowProg['nbr_place_reserve'])
+                ];
+            }
+
+            $programmationModel = new Programmation_voyage();
+            $cars = $programmationModel->getCarsDisponiblesGare($departLocalite, $idCompagnie);
+
+            return [
+                'existe' => false,
+                'cars'   => array_map(fn($c) => [
+                    'id_car'           => (int)$c['id_car'],
+                    'numero_car'       => $c['numero_car'],
+                    'matriculle'       => $c['matriculle'],
+                    'places_restantes' => max(0, (int)$c['nbr_place'] - (int)$c['nbr_place_reserve'])
+                ], $cars)
+            ];
+        }
+
         // public function saveBillets(): bool
         // {
         //     extract($_POST);
@@ -514,6 +606,123 @@
             }
             $prixUtilise = $prixUnitaireServeur * $nombrePassages;
 
+            $idCompagnie = $_SESSION['id_compagnie'] ?? null;
+
+            // === Vente d'aujourd'hui sans programmation prealable ===
+            // Resolue (ou creee a la volee) AVANT d'ouvrir la transaction de vente ci-dessous :
+            // garde le code plus simple a suivre (aucune programmation fantome possible si la
+            // vente echoue ensuite, puisqu'elle est deja actee independamment a ce stade).
+            if ($jourVoyage == $aujourdhui) {
+                $rowProg = $this->fetchOne(
+                    "SELECT id_car_programmer FROM programmation_voyage
+                     WHERE id_horaire = :h AND date_enregistre = :d AND id_trajet = :t
+                     AND localite_user = :l AND id_agence = :a AND id_compagnie = :c LIMIT 1",
+                    [
+                        ':h' => $programme,
+                        ':d' => $jourVoyage,
+                        ':t' => $destinationId,
+                        ':l' => $departLocalite,
+                        ':a' => $idAgenceDepart,
+                        ':c' => $idCompagnie
+                    ]
+                );
+
+                if ($rowProg) {
+                    $idCarProgrammer = $rowProg['id_car_programmer'];
+                } else {
+                    // Aucun car programme : l'agent en a choisi un parmi ceux disponibles a sa
+                    // gare (cf. Add_billets::ajaxEtatCreneau() cote vue).
+                    $idCarChoisi = (int)($_POST['idCarChoisi'] ?? 0);
+                    if (!$idCarChoisi) {
+                        $this->set_flash("Aucun car programmé pour cette heure et ce trajet. Veuillez choisir un car disponible.", "danger");
+                        return false;
+                    }
+
+                    // Defense en profondeur : le car doit etre physiquement a CETTE gare, meme
+                    // pour un Admin (insertProgrammation() est plus permissif pour lui — il peut
+                    // reaffecter un car present ailleurs dans sa compagnie — ce qui ne convient
+                    // pas ici : on ne doit jamais "teleporter" un car absent de la gare qui
+                    // encaisse la vente).
+                    $carValide = $this->fetchOne(
+                        "SELECT id_car FROM car WHERE id_car = :id AND id_compagnie = :ic AND status_car = :loc LIMIT 1",
+                        [':id' => $idCarChoisi, ':ic' => $idCompagnie, ':loc' => $departLocalite]
+                    );
+                    if (!$carValide) {
+                        $this->set_flash("Ce car n'est plus disponible à cette gare. Veuillez réessayer.", "danger");
+                        return false;
+                    }
+
+                    $idAgenceDestination = $this->resolveIdAgenceDestination($idAgenceDepart, $programme, $destinationId, $idCompagnie);
+                    if (!$idAgenceDestination) {
+                        $this->set_flash("Trajet introuvable pour cette destination/heure.", "danger");
+                        return false;
+                    }
+
+                    $programmationModel = new Programmation_voyage();
+                    // Admin : gare choisie dans le formulaire ; autres roles : null (le modele
+                    // retombe alors sur $_SESSION['ville'], leur propre gare fixe).
+                    $idDepartPourAdmin = (($_SESSION['droit'] ?? null) === 'Admin') ? $departLocalite : null;
+                    $programmationCreee = $programmationModel->insertProgrammation(
+                        $idCarChoisi,
+                        $programme,
+                        $destinationId,
+                        $departLocalite,
+                        $jourVoyage,
+                        $idDepartPourAdmin,
+                        $idAgenceDepart,
+                        $idAgenceDestination
+                    );
+                    if (!$programmationCreee) {
+                        $this->set_flash("Impossible de programmer ce car sur ce créneau (déjà en route, déjà programmé ailleurs, ou créneau invalide). Veuillez réessayer ou choisir un autre car.", "danger");
+                        return false;
+                    }
+
+                    // Anti-course : si un autre agent de la meme gare a programme un AUTRE car
+                    // sur ce meme creneau quelques millisecondes avant nous (insertProgrammation()
+                    // ne bloque que les doublons sur le MEME car, pas deux cars differents sur le
+                    // meme trajet), un seul doit survivre : le premier cree. Le perdant desactive
+                    // sa propre programmation (sans risque : par construction, aucune place n'a
+                    // encore ete vendue dessus) et la vente continue avec le car gagnant.
+                    $gagnant = $this->fetchOne(
+                        "SELECT id_programmation, id_car_programmer FROM programmation_voyage
+                         WHERE id_horaire = :h AND date_enregistre = :d AND id_trajet = :t
+                         AND localite_user = :l AND id_agence = :a AND id_compagnie = :c AND statut = 'active'
+                         ORDER BY id_programmation ASC LIMIT 1",
+                        [
+                            ':h' => $programme,
+                            ':d' => $jourVoyage,
+                            ':t' => $destinationId,
+                            ':l' => $departLocalite,
+                            ':a' => $idAgenceDepart,
+                            ':c' => $idCompagnie
+                        ]
+                    );
+
+                    if ($gagnant && (int)$gagnant['id_car_programmer'] !== $idCarChoisi) {
+                        $notre = $this->fetchOne(
+                            "SELECT id_programmation FROM programmation_voyage
+                             WHERE id_horaire = :h AND date_enregistre = :d AND id_trajet = :t
+                             AND localite_user = :l AND id_agence = :a AND id_compagnie = :c
+                             AND id_car_programmer = :car AND statut = 'active' LIMIT 1",
+                            [
+                                ':h' => $programme,
+                                ':d' => $jourVoyage,
+                                ':t' => $destinationId,
+                                ':l' => $departLocalite,
+                                ':a' => $idAgenceDepart,
+                                ':c' => $idCompagnie,
+                                ':car' => $idCarChoisi
+                            ]
+                        );
+                        if ($notre) {
+                            $programmationModel->desactiverProgrammation($notre['id_programmation']);
+                        }
+                        $idCarProgrammer = $gagnant['id_car_programmer'];
+                    } else {
+                        $idCarProgrammer = $idCarChoisi;
+                    }
+                }
+            }
 
             try {
                 $pdo->beginTransaction();
@@ -531,32 +740,8 @@
 
                 // Gestion des places
                 if ($jourVoyage == $aujourdhui) {
-                    // Aujourd'hui → réservation sur car
-                    // Filtre sur id_agence (gare précise) en plus de la localité : sans ça, deux
-                    // gares d'une même ville programmées sur le même créneau se disputeraient le
-                    // même car de façon arbitraire (LIMIT 1). Voir ajout_id_agence_programmation_voyage.sql.
-                    $rowProg = $this->fetchOne(
-                        "SELECT id_car_programmer FROM programmation_voyage
-                 WHERE id_horaire = :h AND date_enregistre = :d AND id_trajet = :t
-                 AND localite_user = :l AND id_agence = :a AND id_compagnie = :c LIMIT 1",
-                        [
-                            ':h' => $programme,
-                            ':d' => $jourVoyage,
-                            ':t' => $destinationId,
-                            ':l' => $departLocalite,
-                            ':a' => $idAgenceDepart,
-                            ':c' => $_SESSION['id_compagnie']
-                        ]
-                    );
-
-                    if (!$rowProg) {
-                        $pdo->rollBack();
-                        $this->set_flash("Aucun car programmé pour cette heure et ce trajet.", "danger");
-                        return false;
-                    }
-
-                    $idCarProgrammer = $rowProg['id_car_programmer'];
-
+                    // Aujourd'hui → réservation sur le car resolu/créé juste avant l'ouverture de
+                    // cette transaction (programmation existante, ou créée à la volée).
                     // SELECT ... FOR UPDATE sur la connexion transactionnelle : verrouille la ligne
                     // jusqu'au commit/rollback pour empêcher deux ventes simultanées de survendre les places.
                     $stmt = $pdo->prepare(

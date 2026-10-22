@@ -90,6 +90,22 @@ $fromAndWhere = "liaison_car_trajet
         return $this->SelectAllDatas($select, $fromAndWhere, $params);
     }
 
+    // Cars physiquement presents a une gare (status_car = cette localite), utilises pour
+    // proposer un car a l'agent qui vend un billet d'aujourd'hui sans programmation
+    // prealable (cf. Add_billet::saveBillets()). Contrairement a getProgrammationCars(),
+    // ne depend pas de liaison_car_trajet : tout car present a la gare est eligible, qu'il
+    // ait deja une affectation de trajet ou non.
+    public function getCarsDisponiblesGare($localite, $id_compagnie)
+    {
+        return $this->fetchAll(
+            "SELECT id_car, numero_car, matriculle, nbr_place, nbr_place_reserve
+             FROM car
+             WHERE status_car = :localite AND id_compagnie = :ic
+             ORDER BY numero_car",
+            [':localite' => $localite, ':ic' => $id_compagnie]
+        );
+    }
+
     // Tous les trajets de la compagnie (toutes gares confondues), independamment de leur
     // affectation a un car particulier (liaison_car_trajet) : utilise pour le select
     // Destination de "Nouvelle programmation de voyage", qui ne doit pas se limiter aux
