@@ -691,6 +691,22 @@
             }
 
             function calculerPrix() {
+                // "Heure non listée" : pas de <option> catalogue à lire ici, le prix vient de
+                // prixUnitaireHeureLibre (résolu côté serveur, cf. rafraichirEtatCreneau) —
+                // sinon cette fonction écrasait le prix déjà affiché par un calcul à vide dès
+                // que l'agent saisissait le nombre de passagers.
+                if (heureNonListee.checked) {
+                    if (prixUnitaireHeureLibre === null) {
+                        prixInput.value = '';
+                        prixTotalInput.value = 'Tarif introuvable pour cette heure — choisissez une heure déjà listée';
+                        return;
+                    }
+                    const total = prixUnitaireHeureLibre * nbPassagers;
+                    prixInput.value = prixUnitaireHeureLibre;
+                    prixTotalInput.value = total > 0 ? `${total.toLocaleString('fr-FR')} FCFA` : '';
+                    return;
+                }
+
                 const selectedOption = programmeSelect.options[programmeSelect.selectedIndex];
                 if (!selectedOption) return;
                 const prixProgramme = parseFloat(selectedOption.dataset.prix || 0);
