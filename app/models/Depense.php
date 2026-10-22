@@ -11,6 +11,7 @@ class Depense extends Model
         'Loyer',
         'Assurance',
         'Remboursement annulation',
+        'Commission agent d\'escale',
         'Autre'
     ];
 

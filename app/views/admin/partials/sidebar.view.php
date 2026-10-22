@@ -199,6 +199,10 @@
                     <li> <a href="<?= BASE_URL ?>/admin/Caisse/caisses_escale"><i class="bi bi-arrow-right-short"></i>Supervision Escale</a></li>
                   <?php endif; ?>
 
+                  <?php if ($user->userHasPermission('Caisse_modifier')): ?>
+                    <li> <a href="<?= BASE_URL ?>/admin/Bordereau_escales/index"><i class="bi bi-arrow-right-short"></i>Bordereau d'escale</a></li>
+                  <?php endif; ?>
+
                   <?php if (in_array($_SESSION['droit'] ?? null, ['Admin', 'PDG'], true)): ?>
                     <li> <a href="<?= BASE_URL ?>/admin/Caisse/rapport_proprietaire"><i class="bi bi-arrow-right-short"></i>Rapport Compagnie</a></li>
                     <li> <a href="<?= BASE_URL ?>/admin/Caisse/anomalies_caisses"><i class="bi bi-arrow-right-short"></i>Anomalies de caisse</a></li>
