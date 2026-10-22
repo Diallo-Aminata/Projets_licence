@@ -253,11 +253,12 @@
                                         <td><?= htmlspecialchars($car['destination']) ?></td>
                                         <td><?= htmlspecialchars(date('d/m/Y', strtotime($car['date_enregistre']))) ?></td>
                                         <td>
-                                            <form action="" method="post" class="d-inline"
-                                                onsubmit="return confirm('Confirmer : ce car est bien arrivé à <?= htmlspecialchars(addslashes($car['destination'])) ?> ?');">
+                                            <form action="" method="post" class="d-inline" id="form-arrivee-<?= $car['id_programmation'] ?>">
                                                 <?= csrf_field() ?>
                                                 <input type="hidden" name="id_programmation_bloque" value="<?= $car['id_programmation'] ?>">
-                                                <button type="submit" name="debloquer_arrive" class="btn btn-sm btn-success shadow-sm rounded-pill px-2 mb-1">
+                                                <input type="hidden" name="debloquer_arrive" value="1">
+                                                <button type="button" class="btn btn-sm btn-success shadow-sm rounded-pill px-2 mb-1"
+                                                    onclick="confirmerArriveeCar(<?= $car['id_programmation'] ?>, '<?= addslashes($car['destination']) ?>')">
                                                     <i class="bx bx-check-double me-1"></i> Arrivé à destination
                                                 </button>
                                             </form>
@@ -290,6 +291,21 @@
     </div>
     <!--end wrapper-->
     <?php $this->view('admin/partials/foot') ?>
+    <script>
+        function confirmerArriveeCar(idProgrammation, destination) {
+            Swal.fire({
+                title: 'Confirmer l\'arrivée',
+                text: `Ce car est bien arrivé à ${destination} ?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#10b981',
+                confirmButtonText: 'Oui, arrivé',
+                cancelButtonText: 'Annuler'
+            }).then(r => {
+                if (r.isConfirmed) document.getElementById('form-arrivee-' + idProgrammation).submit();
+            });
+        }
+    </script>
     <!-- ✅ Script JS pour gérer la sélection de tous les checkboxes -->
     <script>
         const dateInput = document.getElementById('jourVoyage');
