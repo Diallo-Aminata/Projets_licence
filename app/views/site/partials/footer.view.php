@@ -10,7 +10,7 @@
             <div class="contact-info d-flex flex-column flex-md-row gap-4">
                 <div class="contact-items d-flex align-items-center">
                     <div class="icon me-2"><i class="fa-solid fa-phone"></i></div>
-                    <div class="content"><a href="tel:+22390259438">+223 90 25 94 38</a></div>
+                    <div class="content"><a href="tel:+22374167088">+223 74 16 70 88</a></div>
                 </div>
                 <div class="contact-items d-flex align-items-center">
                     <div class="icon me-2"><i class="fa-regular fa-envelope"></i></div>

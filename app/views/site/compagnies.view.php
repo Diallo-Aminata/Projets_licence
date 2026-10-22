@@ -560,7 +560,7 @@
             </div>
             <div>
                 <h4>Contact</h4>
-                <a href="tel:+22390259438"><i class="fas fa-phone"></i> +223 90 25 94 38</a>
+                <a href="tel:+22374167088"><i class="fas fa-phone"></i> +223 74 16 70 88</a>
                 <a href="mailto:transgest@gmail.com"><i class="fas fa-envelope"></i> transgest@gmail.com</a>
                 <a href="#"><i class="fas fa-map-marker-alt"></i> Pelegana, Segou, Mali</a>
             </div>

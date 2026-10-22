@@ -532,7 +532,7 @@
                         <div class="contact-icon"><i class="fas fa-phone-alt"></i></div>
                         <div class="contact-text">
                             <h4>Téléphone</h4>
-                            <p>+223 90 25 94 38</p>
+                            <p>+223 74 16 70 88</p>
                         </div>
                     </div>
                     <div class="contact-item">
@@ -603,7 +603,7 @@
                 <a href="<?= BASE_URL ?>/site/Contact">Contact</a>
             </div>
             <div><h4>Support</h4><a href="#">FAQ</a><a href="#">Conditions générales</a><a href="#">Politique de confidentialité</a></div>
-            <div><h4>Contact</h4><a href="tel:+22390259438"><i class="fas fa-phone"></i> +223 90 25 94 38</a><a href="mailto:transgest@gmail.com"><i class="fas fa-envelope"></i> transgest@gmail.com</a><a href="#"><i class="fas fa-map-marker-alt"></i> Pelegana, Segou, Mali</a></div>
+            <div><h4>Contact</h4><a href="tel:+22374167088"><i class="fas fa-phone"></i> +223 74 16 70 88</a><a href="mailto:transgest@gmail.com"><i class="fas fa-envelope"></i> transgest@gmail.com</a><a href="#"><i class="fas fa-map-marker-alt"></i> Pelegana, Segou, Mali</a></div>
         </div>
         <div class="footer-bottom"><p>Copyright &copy; 2026 Computer Service Barry. All rights reserved.</p></div>
     </div>
