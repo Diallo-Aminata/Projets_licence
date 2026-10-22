@@ -467,9 +467,20 @@
             const heureDepart = heureNonListee.checked ? heureLibreInput.value : programmeSelect.value;
             const destinationLocalite = document.getElementById('hiddenDestinationId').value;
 
-            // Seule la vente d'AUJOURD'HUI dépend d'un car programmé : demain et les jours
-            // suivants passent par un mécanisme de quota (places minimales), sans car assigné.
-            if (!isToday || !heureDepart || !destinationLocalite) return;
+            if (!heureDepart || !destinationLocalite) {
+                if (heureNonListee.checked) {
+                    prixUnitaireHeureLibre = null;
+                    calculerPrixTotal();
+                }
+                return;
+            }
+
+            // Pour une heure non listée, le prix doit être vérifié quelle que soit la date
+            // (le formulaire l'exige aussi pour J+1..J+6, pas seulement aujourd'hui). Seul le
+            // volet "car à choisir" ci-dessous ne concerne que la vente du jour : un voyage de
+            // demain ou après passe par un mécanisme de quota (places minimales), sans car
+            // assigné, donc inutile d'appeler l'AJAX pour une heure déjà cataloguée.
+            if (!isToday && !heureNonListee.checked) return;
 
             const data = { heureDepart: heureDepart, destinationLocalite: destinationLocalite };
             <?php if (($_SESSION['droit'] ?? null) === 'Admin'): ?>
@@ -495,6 +506,10 @@
                             ? parseFloat(response.prix_unitaire) : null;
                         calculerPrixTotal();
                     }
+
+                    // Le bandeau/choix de car ne concerne que la vente du jour : pour une
+                    // heure non listée un autre jour, seul le prix ci-dessus était à vérifier.
+                    if (!isToday) return;
 
                     row.classList.remove('d-none');
 
