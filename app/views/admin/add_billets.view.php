@@ -401,12 +401,17 @@
             programmeSelect.innerHTML =
                 '<option value="">Sélectionnez une heure</option>' +
                 programmes
-                .filter(p => !isToday || !hourIsPast(p.heureDepart))
-                .map(p =>
-                    `<option value="${p.heureDepart}" data-prix="${p.prix}" data-id-programmer="${p.idProgrammer}" data-escales='${JSON.stringify(p.escales)}'>${p.heureDepart}</option>`
-                ).join('');
-            if (programmeSelect.options.length === 1 && isToday) {
-                programmeSelect.innerHTML += '<option disabled>(Plus aucune heure pour aujourd\'hui)</option>';
+                .map(p => {
+                    // Une heure deja passee aujourd'hui reste selectionnable (le car peut
+                    // partir en retard, ou l'agent vend apres coup) : juste signalee, jamais
+                    // masquee - sans ca, plus aucune vente n'etait possible des que la
+                    // derniere heure programmee de la journee etait depassee.
+                    const passee = isToday && hourIsPast(p.heureDepart);
+                    const label = p.heureDepart + (passee ? ' (déjà passée)' : '');
+                    return `<option value="${p.heureDepart}" data-prix="${p.prix}" data-id-programmer="${p.idProgrammer}" data-escales='${JSON.stringify(p.escales)}'>${label}</option>`;
+                }).join('');
+            if (programmeSelect.options.length === 1) {
+                programmeSelect.innerHTML += '<option disabled>(Aucune heure programmée pour cette destination)</option>';
             }
             escalesList.innerHTML = '';
             resetEtatCreneau();
