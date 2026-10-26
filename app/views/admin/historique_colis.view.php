@@ -53,7 +53,7 @@
                             <div class="col-md-4">
                                 <label class="form-label">Heure de départ</label>
                                 <select class="single-select" id="selectheure" name="selectheure">
-                                    <option value="United States">Toutes les heures</option>
+                                    <option value="">Toutes les heures</option>
                                     <?php foreach ($liste_horaire as $liste_horaires): ?>
                                         <option value="<?= $liste_horaires->heuredepart ?>"><?= $liste_horaires->heuredepart ?></option>
                                     <?php endforeach ?>
