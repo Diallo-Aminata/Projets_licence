@@ -265,8 +265,14 @@
     </style>
     <!-- Scripts de validation -->
     <script src="<?= ASSET_URL ?>/assets/js/scrip_validations.js?v=<?= @filemtime(ROOT . '/public/assets/js/scrip_validations.js') ?: time() ?>"></script>
+    <script src="<?= ASSET_URL ?>/mon_js/thermal-print.js"></script>
     <script>
-
+        <?php if (!empty($colisImprime)): ?>
+            // Le reçu est la preuve de dépôt remise au client : imprimé automatiquement
+            // dès l'enregistrement du colis (cf. Colis_prise_en_charges::ajouter_colis(),
+            // même principe que billetImprime pour les billets).
+            imprimerColisThermique(<?= (int) $colisImprime ?>, { auto: true });
+        <?php endif; ?>
     </script>
 
 </body>

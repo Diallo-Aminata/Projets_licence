@@ -140,6 +140,16 @@ class ThermalPrinter
         $r .= "Code : " . self::clean($colis['code'] ?? '-') . "\n";
         $r .= $sep;
 
+        // Mentions légales (même emplacement et même principe que buildBilletContent()
+        // ci-dessus ; texte adapté au colis, cf. app/views/admin/pdf/recu_colis.php).
+        $r .= "Colis > 50 000 FCFA non\n";
+        $r .= "declare : non remboursable\n";
+        $r .= "en cas de perte ou dommage.\n";
+        $r .= "Contenu interdit par la loi :\n";
+        $r .= "colis refuse, sous la seule\n";
+        $r .= "responsabilite du proprietaire.\n";
+        $r .= $sep;
+
         $r .= "Enregistre par " . self::clean($colis['agent'] ?? '-') . "\n";
         $r .= "Merci d'avoir choisi " . self::clean($colis['compagnie'] ?? '') . "\n";
         $r .= "\n\n\n";

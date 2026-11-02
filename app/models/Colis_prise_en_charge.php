@@ -145,6 +145,10 @@
                         "success",
                         "#0d6efd" // Couleur bleue (primaire)
                     );
+
+                    // Permet au contrôleur de déclencher l'impression automatique du reçu
+                    // (cf. ajouter_colis(), même principe que billetImprime pour les billets).
+                    return $idColisInsere;
                 } catch (Exception $e) {
                     $pdo->rollBack();
 
@@ -154,6 +158,7 @@
                         "error",
                         "#dc3545"
                     );
+                    return false;
                 }
             } else {
                 $errorsHtml = implode("<br>", array_map('htmlspecialchars', $errors));
@@ -163,6 +168,7 @@
                     "warning",
                     "#ffc107"
                 );
+                return false;
             }
         }
 

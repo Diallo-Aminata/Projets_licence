@@ -13,6 +13,7 @@
     .bloc h3{font-size:12px;margin:0 0 2px;text-transform:uppercase;border-bottom:1px solid #000;padding-bottom:1px}
     .row{padding:1px 0}
     .row .label{font-weight:bold}
+    .conditions{margin:6px 0;font-size:9.5px;color:#000;line-height:1.4;text-align:center}
     footer{border-top:1px dashed #000;margin-top:6px;padding-top:4px;font-size:10px;text-align:center}
     .qr{margin-top:6px;text-align:center}
 </style>
@@ -60,6 +61,13 @@
 </div>
 
 <div class="row" style="text-align:center;"><span class="label">Enregistré par :</span> <?= htmlspecialchars($colis['agent_nom'] ?? '-') ?></div>
+
+<hr>
+
+<div class="conditions">
+    La compagnie décline toute responsabilité pour tout colis dont la valeur dépasse <strong>50 000 FCFA</strong> et n'a pas été déclarée à l'enregistrement : il n'est <strong>pas remboursable</strong> en cas de perte ou de dommage.<br>
+    Tout colis dont le contenu est <strong>interdit par la loi</strong> est refusé ; la compagnie se dégage de toute responsabilité à ce sujet, qui n'engage que le propriétaire.
+</div>
 
 <footer>
     Reçu généré le <?= date('d/m/Y à H:i') ?><br>Merci d’avoir choisi <?= htmlspecialchars($compagnie['nom']) ?>.

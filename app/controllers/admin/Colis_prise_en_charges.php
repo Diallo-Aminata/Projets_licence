@@ -67,12 +67,17 @@ class Colis_prise_en_charges extends  Controller
     $colis_prise_en_charge =  new Colis_prise_en_charge();
     $code_colis = $this->genererCodeUnique($colis_prise_en_charge); // générer un code unique
 
+    // Le reçu est la preuve de dépôt remise au client : comme pour le billet
+    // (cf. Add_billet::saveBillets(), paramètre billetImprime), on transmet l'id
+    // du colis tout juste créé à la vue pour déclencher son impression automatique.
+    // Pas de redirection ici (contrairement au billet) : set_swal() écrit directement
+    // dans la réponse en cours, une redirection casserait ce mécanisme ("headers already sent").
+    $colisImprime = null;
     if (isset($_POST['envoi'])) {
-      $errors =  $colis_prise_en_charge->saveColis();
-    } else {
-      $errors = [];
+      $idColisCree = $colis_prise_en_charge->saveColis();
+      $colisImprime = $idColisCree ?: null;
     }
-    // liste 
+    // liste
     $id_compagnie = $_SESSION['id_compagnie'];
 
     $listes =  $colis_prise_en_charge->FetchSelectWheres(
@@ -81,7 +86,7 @@ class Colis_prise_en_charges extends  Controller
       'id_compagnie = :id_compagnie',
       ['id_compagnie' => $id_compagnie]
     );
-    $this->view('admin/ajouter_colis', ['listes' => $listes, 'code_colis' => $code_colis]);
+    $this->view('admin/ajouter_colis', ['listes' => $listes, 'code_colis' => $code_colis, 'colisImprime' => $colisImprime]);
   }
 
   private function genererCodeColis($longueur = 6)
